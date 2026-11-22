@@ -13,6 +13,7 @@ use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Livewire\Features\SupportTesting\Testable;
@@ -154,6 +155,22 @@ class ChannelsScreenTest extends TestCase
         Livewire::actingAs($this->admin())->test(ChannelCard::class, ['channel' => $channel])
             ->call('connect')
             ->assertSet('errorMessage', 'O WAHA respondeu com erro. Tente de novo em instantes.');
+    }
+
+    public function test_waha_fora_do_ar_no_poll_reporta_uma_vez_so(): void
+    {
+        Exceptions::fake();
+        Http::fake(['*/api/sessions*' => Http::response(['message' => 'fora do ar'], 500)]);
+        $channel = Channel::factory()->create(['waha_session' => 'main']);
+
+        $card = Livewire::actingAs($this->admin())->test(ChannelCard::class, ['channel' => $channel]);
+
+        foreach (range(1, 3) as $ignored) {
+            $card->call('refreshStatus')
+                ->assertSet('errorMessage', 'O WAHA respondeu com erro. Tente de novo em instantes.');
+        }
+
+        Exceptions::assertReportedCount(1);
     }
 
     public function test_erro_desconhecido_nao_mostra_o_texto_tecnico(): void

@@ -16,6 +16,7 @@ use App\Services\Waha\WahaQr;
 use App\Services\Waha\WahaRequestException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Throwable;
@@ -318,7 +319,8 @@ class ChannelCard extends Component
 
     private function fail(Throwable $exception): void
     {
-        report($exception);
+        // O poll roda a cada 5 s: sem o limite, o WAHA fora do ar gravaria um stack trace a cada 5 s.
+        RateLimiter::attempt('channel-card-report:'.$this->channel->id.':'.$exception::class, 1, fn () => report($exception), 300);
 
         $status = $exception instanceof WahaRequestException ? $exception->statusCode : 0;
 
