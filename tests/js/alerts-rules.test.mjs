@@ -36,6 +36,21 @@ test('o crítico toca com o som crítico e o silêncio por tempo o cala', () => 
     assert.equal(isMuted(s, Date.parse('2026-10-30T12:15:01Z')), false);
 });
 
+test('o crítico fica calado com todos os sons desligados', () => {
+    const s = base();
+    s.sound = { message: false, queue: false, assigned: false, sla: false };
+    assert.equal(soundFor('connection_down', s, { now: NOW, activated: true }), null);
+    s.sound.sla = true;
+    assert.equal(soundFor('connection_down', s, { now: NOW, activated: true }), 'critico');
+});
+
+test('o crítico só toca depois de um gesto na página', () => {
+    const s = base();
+    assert.equal(soundFor('connection_down', s, { now: NOW, activated: false }), null);
+    assert.equal(soundFor('connection_down', s, { now: NOW, activated: true }), 'critico');
+    assert.equal(soundFor('connection_down', s, { now: NOW }), 'critico');
+});
+
 test('prazo de silêncio ilegível não cala nada', () => {
     const s = base();
     s.mute_critical_until = 'lixo';
