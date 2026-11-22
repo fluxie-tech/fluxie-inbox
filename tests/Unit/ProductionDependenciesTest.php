@@ -39,6 +39,9 @@ class ProductionDependenciesTest extends TestCase
         $this->assertContains('Foo\Bar', $classes);
         $this->assertContains('Laravel\Pint\Thing', $classes);
         $this->assertNotContains('App', $classes);
+
+        $this->assertNotContains('Models\User', $this->classesIn("<?php\nuse App\\Models\\User;\n"));
+        $this->assertContains('Mockery', $this->classesIn("<?php\nMockery::shouldReceive(); \\Mockery::mock();\n"));
     }
 
     /**
@@ -64,7 +67,7 @@ class ProductionDependenciesTest extends TestCase
     private function classesIn(string $code): array
     {
         preg_match_all('/^use (?:function |const )?([A-Za-z0-9_\\\\]+)/m', $code, $uses);
-        preg_match_all('/\\\\([A-Z][A-Za-z0-9_]*(?:\\\\[A-Za-z0-9_]+)+)/', $code, $qualified);
+        preg_match_all('/(?<![A-Za-z0-9_\\\\])\\\\([A-Z][A-Za-z0-9_]*(?:\\\\[A-Za-z0-9_]+)*)/', $code, $qualified);
 
         return [...$uses[1], ...$qualified[1]];
     }
