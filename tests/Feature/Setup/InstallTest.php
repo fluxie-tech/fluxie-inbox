@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\Setup\SetupState;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -44,6 +45,27 @@ class InstallTest extends TestCase
         $this->assertNotNull($user->email_verified_at);
         $this->assertAuthenticatedAs($user);
         $this->assertSame(1, AuditLog::where('action', 'user.created')->where('actor_label', 'Instalação')->count());
+    }
+
+    public function test_em_producao_a_senha_do_primeiro_admin_so_exige_12_caracteres(): void
+    {
+        $this->app->detectEnvironment(fn (): string => 'production');
+        Http::fake();
+
+        $this->preencher()->set('password', 'senhasimples')->set('password_confirmation', 'senhasimples')
+            ->call('save')->assertHasNoErrors()->assertRedirect('/primeiros-passos');
+        Http::assertNothingSent();
+    }
+
+    public function test_senha_do_primeiro_admin_com_menos_de_12_caracteres_e_recusada(): void
+    {
+        $this->app->detectEnvironment(fn (): string => 'production');
+
+        $this->preencher()->set('password', 'senhasimple')->set('password_confirmation', 'senhasimple')
+            ->call('save')->assertHasErrors('password')
+            ->assertSee('no mínimo 12 caracteres');
+
+        $this->assertSame(0, User::count());
     }
 
     public function test_codigo_errado_nao_cria_nada(): void
