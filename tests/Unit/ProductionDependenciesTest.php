@@ -20,9 +20,7 @@ class ProductionDependenciesTest extends TestCase
         $missing = [];
 
         foreach ($files as $file) {
-            preg_match_all('/^use (?:function |const )?([A-Za-z0-9_\\\\]+)/m', (string) file_get_contents($file->getPathname()), $m);
-
-            foreach ($m[1] as $class) {
+            foreach ($this->classesIn((string) file_get_contents($file->getPathname())) as $class) {
                 foreach ($devOnly as $prefix => $package) {
                     if (str_starts_with($class.'\\', $prefix) && ! $this->coveredByProd($class, $prod)) {
                         $missing[$package] = $class;
@@ -32,6 +30,15 @@ class ProductionDependenciesTest extends TestCase
         }
 
         $this->assertSame([], $missing, 'Pacote só em require-dev usado em app/: mova para require.');
+    }
+
+    public function test_le_nome_totalmente_qualificado_no_codigo(): void
+    {
+        $classes = $this->classesIn("<?php\nnamespace App;\nuse Foo\\Bar;\nclass X { function f() { return new \\Laravel\\Pint\\Thing; } }");
+
+        $this->assertContains('Foo\Bar', $classes);
+        $this->assertContains('Laravel\Pint\Thing', $classes);
+        $this->assertNotContains('App', $classes);
     }
 
     /**
@@ -49,6 +56,17 @@ class ProductionDependenciesTest extends TestCase
         }
 
         return $out;
+    }
+
+    /**
+     * @return list<string> nomes de `use` do topo e nomes totalmente qualificados (`\A\B`) no corpo
+     */
+    private function classesIn(string $code): array
+    {
+        preg_match_all('/^use (?:function |const )?([A-Za-z0-9_\\\\]+)/m', $code, $uses);
+        preg_match_all('/\\\\([A-Z][A-Za-z0-9_]*(?:\\\\[A-Za-z0-9_]+)+)/', $code, $qualified);
+
+        return [...$uses[1], ...$qualified[1]];
     }
 
     /** @param  array<string, string>  $prod */
