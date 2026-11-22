@@ -12,8 +12,11 @@ use App\Models\Contact;
 use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
+use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -151,7 +154,54 @@ class ChannelsScreenTest extends TestCase
 
         Livewire::actingAs($this->admin())->test(ChannelCard::class, ['channel' => $channel])
             ->call('connect')
-            ->assertSet('errorMessage', fn ($message) => str_contains($message, 'WAHA'));
+            ->assertSet('errorMessage', 'O WAHA respondeu com erro. Tente de novo em instantes.');
+    }
+
+    public function test_waha_fora_do_ar_no_poll_reporta_uma_vez_so(): void
+    {
+        Exceptions::fake();
+        Http::fake(['*/api/sessions*' => Http::response(['message' => 'fora do ar'], 500)]);
+        $channel = Channel::factory()->create(['waha_session' => 'main']);
+
+        $card = Livewire::actingAs($this->admin())->test(ChannelCard::class, ['channel' => $channel]);
+
+        foreach (range(1, 3) as $ignored) {
+            $card->call('refreshStatus')
+                ->assertSet('errorMessage', 'O WAHA respondeu com erro. Tente de novo em instantes.');
+        }
+
+        Exceptions::assertReportedCount(1);
+    }
+
+    public function test_erro_desconhecido_nao_mostra_o_texto_tecnico(): void
+    {
+        Http::fake(fn () => throw new \InvalidArgumentException('URI must include a scheme and host'));
+
+        $this->connectComFalha()
+            ->assertSet('errorMessage', 'Não foi possível falar com o WAHA. Tente de novo; se continuar, avise o administrador.');
+    }
+
+    public function test_waha_sem_resposta_tem_frase_propria(): void
+    {
+        Http::fake(fn () => throw new ConnectionException('cURL error 7: Connection refused'));
+
+        $this->connectComFalha()
+            ->assertSet('errorMessage', 'O WAHA não respondeu. Confira se ele está no ar e tente de novo.');
+    }
+
+    public function test_waha_recusa_a_chave(): void
+    {
+        Http::fake(['*' => Http::response(['message' => 'Unauthorized'], 401)]);
+
+        $this->connectComFalha()
+            ->assertSet('errorMessage', 'O WAHA recusou a chave de acesso (WAHA_API_KEY).');
+    }
+
+    private function connectComFalha(): Testable
+    {
+        $channel = Channel::factory()->create(['waha_session' => 'main']);
+
+        return Livewire::actingAs($this->admin())->test(ChannelCard::class, ['channel' => $channel])->call('connect');
     }
 
     public function test_qr_aparece_quando_a_sessao_pede_leitura(): void

@@ -6,10 +6,12 @@ use App\Enums\AuditAction;
 use App\Enums\UpdateStatus;
 use App\Models\SystemUpdate;
 use App\Models\User;
+use App\Notifications\NewVersionAvailable;
 use App\Services\Audit\Auditor;
 use App\Services\Backup\BackupKind;
 use App\Services\Backup\DumpFailed;
 use App\Services\Backup\RunBackup;
+use Illuminate\Notifications\DatabaseNotification;
 use RuntimeException;
 use Throwable;
 
@@ -60,7 +62,14 @@ final class ApplyUpdate
     /** Fecha como `concluida` (quem chama já viu a versão nova rodando). */
     public function succeed(SystemUpdate $update): void
     {
-        $this->close($update, UpdateStatus::Concluida, "Sistema atualizado para {$update->to_version}.", AuditAction::UpdateSucceeded);
+        if (! $this->close($update, UpdateStatus::Concluida, "Sistema atualizado para {$update->to_version}.", AuditAction::UpdateSucceeded)) {
+            return;
+        }
+
+        // O aviso "Versão X disponível" deixa de valer: a X já está rodando.
+        DatabaseNotification::query()->where('type', NewVersionAvailable::class)->whereNull('read_at')
+            ->whereRaw("(data::jsonb ->> 'version') = ?", [(string) (Version::parse($update->to_version) ?? $update->to_version)])
+            ->update(['read_at' => now()]);
     }
 
     /** @throws RuntimeException com os erros do pré-voo, em português */
@@ -177,13 +186,15 @@ final class ApplyUpdate
         $this->close($update, UpdateStatus::Revertida, "A atualização foi desfeita: {$reason}", AuditAction::UpdateReverted);
     }
 
-    private function close(SystemUpdate $update, UpdateStatus $status, string $message, AuditAction $action): void
+    private function close(SystemUpdate $update, UpdateStatus $status, string $message, AuditAction $action): bool
     {
         if (! $update->moveTo($status, $message)) {
-            return; // já fechada por outro processo: sem segunda auditoria
+            return false; // já fechada por outro processo: sem segunda auditoria
         }
 
         Auditor::record($action, $update->requested_by === null ? null : User::query()->find($update->requested_by), $update->to_version, ['message' => $message]);
+
+        return true;
     }
 
     private function at(SystemUpdate $update, UpdateStatus $status): bool

@@ -46,6 +46,6 @@ class VersionTest extends TestCase
     public function test_prefixo_v(): void
     {
         $this->assertSame('0.2.0', (string) Version::parse('v0.2.0'));
-        $this->assertTrue(Version::parse('0.0.0-teste.1')->isRelease());
+        $this->assertSame('0.0.0-teste.1', (string) Version::parse('0.0.0-teste.1'));
     }
 }

@@ -8,16 +8,19 @@ use App\Enums\UserRole;
 use App\Models\AuditLog;
 use App\Models\SystemUpdate;
 use App\Models\User;
+use App\Notifications\NewVersionAvailable;
 use App\Notifications\UpdateFinished;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Notifications\ChannelManager;
+use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Notifications\Events\BroadcastNotificationCreated;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\TestCase;
@@ -48,6 +51,41 @@ class UpdateWatchTest extends TestCase
         $this->artisan('app:update-watch')->assertSuccessful();
 
         return $this->update->refresh();
+    }
+
+    /** @return array<string, DatabaseNotification> aviso por versão; o `Notification::fake` do setUp não grava no banco */
+    private function bellNotices(User $admin, string ...$versions): array
+    {
+        return collect($versions)->mapWithKeys(fn (string $v): array => [$v => $admin->notifications()->create([
+            'id' => (string) Str::uuid(),
+            'type' => NewVersionAvailable::class,
+            'data' => ['kind' => 'update', 'level' => 'info', 'state' => 'available', 'version' => $v],
+        ])])->all();
+    }
+
+    public function test_concluir_marca_como_lido_o_aviso_da_versao_instalada(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::ADMIN]);
+        $notices = $this->bellNotices($admin, '0.2.0', '0.3.0');
+        $this->update->update(['to_version' => 'v0.2.0']);
+        $this->at(UpdateStatus::Reiniciando, 1);
+        config(['fluxie.version' => '0.2.0']);
+
+        $this->watch();
+
+        $this->assertNotNull($notices['0.2.0']->refresh()->read_at);
+        $this->assertNull($notices['0.3.0']->refresh()->read_at);
+    }
+
+    public function test_devolver_nao_marca_o_aviso(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::ADMIN]);
+        $notices = $this->bellNotices($admin, '0.2.0');
+        $this->at(UpdateStatus::Reiniciando, 11);
+
+        $this->assertSame(UpdateStatus::Revertida, $this->watch()->status);
+
+        $this->assertNull($notices['0.2.0']->refresh()->read_at);
     }
 
     public function test_reiniciando_com_a_versao_destino_conclui_audita_e_avisa(): void

@@ -15,6 +15,8 @@ use App\Services\Waha\WahaClient;
 use App\Services\Waha\WahaQr;
 use App\Services\Waha\WahaRequestException;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Throwable;
@@ -317,7 +319,17 @@ class ChannelCard extends Component
 
     private function fail(Throwable $exception): void
     {
-        $this->errorMessage = 'Não foi possível falar com o WAHA: '.$exception->getMessage();
+        // O poll roda a cada 5 s: sem o limite, o WAHA fora do ar gravaria um stack trace a cada 5 s.
+        RateLimiter::attempt('channel-card-report:'.$this->channel->id.':'.$exception::class, 1, fn () => report($exception), 300);
+
+        $status = $exception instanceof WahaRequestException ? $exception->statusCode : 0;
+
+        $this->errorMessage = match (true) {
+            $exception instanceof ConnectionException => 'O WAHA não respondeu. Confira se ele está no ar e tente de novo.',
+            in_array($status, [401, 403], true) => 'O WAHA recusou a chave de acesso (WAHA_API_KEY).',
+            $status >= 500 => 'O WAHA respondeu com erro. Tente de novo em instantes.',
+            default => 'Não foi possível falar com o WAHA. Tente de novo; se continuar, avise o administrador.',
+        };
     }
 
     private function onlyDigits(string $value): string

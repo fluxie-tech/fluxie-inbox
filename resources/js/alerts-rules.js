@@ -30,8 +30,12 @@ export function soundFor(kind, settings, ctx = {}) {
         case 'sla_warn':
         case 'sla_breached':
             return sound.sla ? 'sla' : null;
-        case 'connection_down':
-            return isMuted(settings, ctx.now) ? null : 'critico';
+        case 'connection_down': {
+            // Sem som ligado não há o que tocar; sem gesto o navegador bloqueia o áudio (undefined = sem a API, conta como liberado).
+            const anySound = Object.values(sound).some(Boolean);
+
+            return isMuted(settings, ctx.now) || ctx.activated === false || !anySound ? null : 'critico';
+        }
         default:
             return null;
     }

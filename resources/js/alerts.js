@@ -109,7 +109,13 @@ function start(id) {
     }
 
     function once(kind, ctx = {}) {
-        const sound = soundFor(kind, settings, { ...ctx, openTicketId: openTicket(), focused: document.hasFocus(), now: Date.now() });
+        const sound = soundFor(kind, settings, {
+            ...ctx,
+            openTicketId: openTicket(),
+            focused: document.hasFocus(),
+            now: Date.now(),
+            activated: navigator.userActivation?.hasBeenActive,
+        });
 
         if (sound) {
             play(sound);

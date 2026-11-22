@@ -46,11 +46,7 @@ Nenhum pendente. P1, P3 e P5 corrigidos no branch (transação, tela limpa com S
 
 ## Menores adiados da atualização pelo app (17/11/2026, `feat/atualizacao-pelo-app`)
 
-- Alerta "Versão X disponível" continua no sino depois que a atualização para X concluiu; avaliar marcar como lido ao concluir
-  (`app/Console/Commands/UpdateWatchCommand.php`, `app/Notifications/NewVersionAvailable.php`).
-- `tests/Feature/Backup/Restore/SideDatabaseTest.php` `test_verify_nao_deixa_conexao_aberta_no_banco_novo` falhou 1 vez em
-  `--parallel` (conta conexões abertas; passa isolado e na rodada seguinte): teste instável.
-- `tests/Unit/ProductionDependenciesTest.php` só lê `use` no topo; classe de pacote escrita por inteiro no código não é vista.
+Nenhum pendente. Os três foram fechados na leva 4 (`fix/menores-leva-4`, 22/11).
 
 ## Pendências maiores já combinadas (não são menores de revisão)
 
