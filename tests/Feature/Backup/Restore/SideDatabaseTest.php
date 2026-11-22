@@ -179,8 +179,35 @@ class SideDatabaseTest extends TestCase
 
         $this->side->verify($this->database);
 
-        $row = $this->admin->connection()->selectOne('select count(*) as total from pg_stat_activity where datname = ?', [$this->database]);
-        $this->assertSame(0, (int) $row->total);
+        $this->assertArrayNotHasKey('pgsql_side', DB::getConnections());
+        $this->assertSame(0, $this->clientSessionsAfterWaiting());
+    }
+
+    public function test_espera_de_sessoes_enxerga_conexao_deixada_aberta(): void
+    {
+        // Prova que a espera acima não é vacuosa: com a conexão aberta de propósito, a contagem não zera.
+        $this->schema();
+        $this->admin->connectionTo($this->database, 'pgsql_side')->select('select 1');
+
+        $this->assertGreaterThan(0, $this->clientSessionsAfterWaiting(0.3));
+
+        $this->admin->forget('pgsql_side');
+    }
+
+    /** O servidor leva alguns ms para encerrar o processo depois que o cliente desconecta; autovacuum não conta. */
+    private function clientSessionsAfterWaiting(float $seconds = 2.0): int
+    {
+        $deadline = microtime(true) + $seconds;
+
+        do {
+            $row = $this->admin->connection()->selectOne("select count(*) as total from pg_stat_activity where datname = ? and backend_type = 'client backend'", [$this->database]);
+            if ((int) $row->total === 0) {
+                return 0;
+            }
+            usleep(100_000);
+        } while (microtime(true) < $deadline);
+
+        return (int) $row->total;
     }
 
     /** @return array<string, array{string}> */
