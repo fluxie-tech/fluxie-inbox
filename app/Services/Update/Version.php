@@ -22,11 +22,6 @@ final readonly class Version
         return new self([(int) $m[1], (int) $m[2], (int) $m[3]], isset($m[4]) ? explode('.', $m[4]) : []);
     }
 
-    public function isRelease(): bool
-    {
-        return true;
-    }
-
     public function greaterThan(self $other): bool
     {
         if ($this->core !== $other->core) {
