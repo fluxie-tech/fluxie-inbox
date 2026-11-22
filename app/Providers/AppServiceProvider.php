@@ -66,8 +66,7 @@ class AppServiceProvider extends ServiceProvider
                 ->mixedCase()
                 ->letters()
                 ->numbers()
-                ->symbols()
-                ->uncompromised()
+                ->symbols() // sem ->uncompromised(): o sistema não consulta serviço de terceiros (decisão do dono)
             : null,
         );
     }

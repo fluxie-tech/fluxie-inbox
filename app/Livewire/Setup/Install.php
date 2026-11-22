@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Setup;
 
-use App\Concerns\PasswordValidationRules;
 use App\Enums\AuditAction;
 use App\Enums\UserRole;
 use App\Models\User;
@@ -12,6 +11,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\Rules\Password;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -21,8 +21,6 @@ use Livewire\Component;
 #[Layout('layouts::auth')]
 class Install extends Component
 {
-    use PasswordValidationRules;
-
     public string $code = '';
 
     public string $name = '';
@@ -69,7 +67,8 @@ class Install extends Component
         $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => $this->passwordRules(),
+            // Primeiro admin: só o tamanho (decisão do dono); as outras telas seguem com Password::default().
+            'password' => ['required', 'string', Password::min(12), 'confirmed'],
         ]);
 
         $user = DB::transaction(function (): ?User {
