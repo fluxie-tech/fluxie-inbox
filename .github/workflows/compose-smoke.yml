@@ -33,20 +33,9 @@ jobs:
           bash tests/scripts/coolify-test.sh
           bash tests/scripts/only-docs-test.sh
 
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-      # A base vem do GHCR (pública); o runtime é construído aqui, lendo o cache que o edge grava.
+      # A base vem do GHCR (pública); o runtime é construído aqui.
       - name: Build the runtime image
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          file: docker/Dockerfile
-          target: runtime
-          tags: fluxie-smoke:ci
-          load: true
-          provenance: false
-          cache-from: type=gha,scope=runtime
+        run: docker build --target runtime -f docker/Dockerfile -t fluxie-smoke:ci .
 
       - name: Compose smoke test
         run: bash docker/smoke/compose-smoke.sh fluxie-smoke:ci
@@ -60,19 +49,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
       - name: Build the runtime image
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          file: docker/Dockerfile
-          target: runtime
-          tags: fluxie-smoke:ci
-          load: true
-          provenance: false
-          cache-from: type=gha,scope=runtime
+        run: docker build --target runtime -f docker/Dockerfile -t fluxie-smoke:ci .
 
       - name: Upgrade smoke test
         run: bash docker/smoke/upgrade-smoke.sh fluxie-smoke:ci

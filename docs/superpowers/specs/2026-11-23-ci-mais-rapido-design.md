@@ -54,3 +54,10 @@ runner maior fora de questão, cache de 10 GB por repositório.
 - **Prova.** `actionlint`, se houver, ou revisão. A prova real é o CI do próprio PR, que mexe em `.github/` e dispara
   `tests`, `security` e `compose-smoke` (o caminho `.github/workflows/compose-smoke.yml`). Depois do merge, o run do `edge`
   confirma a gravação do cache.
+
+## Revisão de 23/11, depois do merge
+
+O cache Docker (decisão 2) foi desfeito. Medido nos `edge` da main: o build foi de 37 s (`docker build`) para 66 a 77 s com
+buildx e cache cheio, mais 6 a 10 s para montar o buildx; o job inteiro foi de 3m17s para 4m12s. As camadas de `composer
+install` e `npm ci` levam quase o mesmo tempo para baixar do cache do GitHub quanto para rodar. Os três builds voltaram ao
+`docker build`; o resto do desenho segue valendo.
