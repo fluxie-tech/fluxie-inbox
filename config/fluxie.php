@@ -8,6 +8,9 @@ return [
     /** Versão gravada na imagem (`ARG VERSION`): sempre `sha-…` (a Release só retaga a imagem) ou `dev` fora do Docker; não reconhece Release. */
     'build' => env('FLUXIE_BUILD', 'dev'),
 
+    /** Liga o "Zerar sistema" (tela e comando); desligado por padrão, porque destrói a instalação. */
+    'allow_reset' => filter_var(env('FLUXIE_ALLOW_RESET', false), FILTER_VALIDATE_BOOLEAN),
+
     'releases_repo' => env('FLUXIE_RELEASES_REPO', 'fluxie-tech/fluxie-inbox'),
 
     'update_prerelease' => env('FLUXIE_UPDATE_PRERELEASE', false),

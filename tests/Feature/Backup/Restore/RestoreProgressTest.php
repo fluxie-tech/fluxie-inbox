@@ -17,6 +17,74 @@ class RestoreProgressTest extends TestCase
         $this->assertFalse((new RestoreProgress)->isRunning());
     }
 
+    public function test_begin_guarda_o_kind_e_get_devolve(): void
+    {
+        $progress = new RestoreProgress;
+        $progress->begin('Zerando o sistema', ['reset-down'], 'reset');
+
+        $this->assertSame('reset', $progress->get()['kind']);
+        $this->assertSame('Entrando em manutenção', $progress->get()['steps'][0]['label']);
+
+        $progress->begin('Restaurando o banco', ['inspect']);
+        $this->assertSame('restore', $progress->get()['kind']);
+    }
+
+    public function test_o_passo_do_cache_do_zerar_diz_que_limpa_as_sessoes(): void
+    {
+        $progress = new RestoreProgress;
+        $progress->begin('Zerando o sistema', ['reset-cache'], 'reset');
+
+        $this->assertSame('Limpando o cache e as sessões', $progress->get()['steps'][0]['label']);
+    }
+
+    public function test_estado_sem_kind_ou_idle_vale_restore(): void
+    {
+        $this->assertSame('restore', (new RestoreProgress)->get()['kind']);
+
+        $legacy = ['status' => 'running', 'title' => 'T', 'steps' => [], 'message' => ''];
+        Cache::put('restore:state', $legacy);
+        $this->assertSame('restore', (new RestoreProgress)->get()['kind']);
+
+        Cache::put('restore:state', [...$legacy, 'kind' => 'bobagem']);
+        $this->assertSame('restore', (new RestoreProgress)->get()['kind']);
+    }
+
+    public function test_replace_regrava_o_estado(): void
+    {
+        $progress = new RestoreProgress;
+        $progress->begin('Zerando o sistema', ['reset-down', 'reset-up'], 'reset');
+        $progress->running('reset-down');
+        $state = $progress->get();
+
+        Cache::flush();
+        $this->assertSame('idle', $progress->get()['status']);
+
+        $progress->replace($state);
+        $this->assertSame($state, $progress->get());
+        $this->assertTrue($progress->isRunning());
+    }
+
+    public function test_replace_grava_com_ttl_de_terminado_ou_de_andamento_conforme_o_status(): void
+    {
+        $progress = new RestoreProgress;
+        $progress->begin('Zerando o sistema', ['reset-down'], 'reset');
+        $running = $progress->get();
+        $progress->finish('ok');
+        $done = $progress->get();
+
+        $ttls = [];
+        Cache::shouldReceive('put')->twice()->andReturnUsing(function (string $key, mixed $value, \DateTimeInterface $ttl) use (&$ttls): bool {
+            $ttls[] = (int) round(now()->diffInMinutes($ttl, true));
+
+            return true;
+        });
+
+        $progress->replace($done);
+        $progress->replace($running);
+
+        $this->assertSame([24 * 60, 60], $ttls);
+    }
+
     public function test_comeca_ordena_e_termina_os_passos(): void
     {
         $progress = new RestoreProgress;

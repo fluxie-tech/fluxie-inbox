@@ -9,9 +9,11 @@ use App\Models\User;
 use App\Services\Backup\ManualBackupState;
 use App\Services\Backup\Restore\RestoreProgress;
 use App\Settings\BackupStatus;
+use Illuminate\Cache\Events\CacheHit;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Foundation\Console\QueuedCommand;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -182,6 +184,34 @@ class BackupsPageTest extends TestCase
         Queue::assertNothingPushed();
         $this->assertFalse((new ManualBackupState)->isRunning());
         $this->assertSame(0, AuditLog::query()->count());
+    }
+
+    public function test_backup_manual_recusado_durante_o_zerar(): void
+    {
+        Queue::fake();
+        app(RestoreProgress::class)->begin('Zerando o sistema', ['reset-down'], 'reset');
+
+        Livewire::actingAs($this->admin())->test(Backups::class)
+            ->call('runNow')
+            ->assertSet('problem', 'Há um zerar do sistema em andamento; espere ele terminar para fazer um backup.');
+
+        Queue::assertNothingPushed();
+        $this->assertFalse((new ManualBackupState)->isRunning());
+    }
+
+    public function test_fazer_agora_le_o_andamento_uma_vez_so(): void
+    {
+        Queue::fake();
+        app(RestoreProgress::class)->begin('Zerando o sistema', ['reset-down'], 'reset');
+        $reads = 0;
+        Event::listen(CacheHit::class, function (CacheHit $event) use (&$reads): void {
+            $reads += $event->key === 'restore:state' ? 1 : 0;
+        });
+        $this->actingAs($this->admin());
+
+        (new Backups)->runNow(new ManualBackupState);
+
+        $this->assertSame(1, $reads);
     }
 
     public function test_fazer_agora_grava_a_auditoria_so_quando_enfileira(): void

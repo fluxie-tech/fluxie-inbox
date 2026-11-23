@@ -140,5 +140,33 @@
                 <flux:button variant="primary" wire:click="askUpdate" wire:loading.attr="disabled" wire:target="askUpdate">Atualizar para {{ $target }}</flux:button>
             @endif
         @endif
+
+        <x-panel title="Zerar sistema" title-id="reset-title" role="region" aria-labelledby="reset-title">
+            <div class="p-4">
+                @if (! $allowReset)
+                    <p class="text-sm text-ink-2" role="status">Desligado nesta instalação. Para ligar, defina <span class="font-mono">FLUXIE_ALLOW_RESET=true</span> no Coolify e reinicie.</p>
+                @elseif ($resetting)
+                    <div class="space-y-2 text-sm text-ink-2">
+                        <p class="text-danger">Isto apaga TUDO e não tem volta, inclusive TODOS os backups guardados no sistema.</p>
+                        <p>Recomendado: gere um backup e baixe-o antes. <a href="{{ route('configuracoes.backups') }}" wire:navigate class="inline-flex min-h-6 items-center font-medium text-accent-content underline underline-offset-2">Ir para Backups</a></p>
+                    </div>
+                    @if ($resetProblem !== null)
+                        <p class="mt-3 text-sm text-danger" role="alert">{{ $resetProblem }}</p>
+                    @endif
+                    <div class="mt-4 max-w-sm space-y-3">
+                        <flux:checkbox wire:model.live="resetAgree" label="Entendo que vou perder todos os dados e todos os backups do sistema." />
+                        <flux:input wire:model.live.debounce.250ms="resetName" label="Digite o nome da empresa: {{ $resetWord }}" autocomplete="off" />
+                        <flux:input wire:model="resetPassword" label="Sua senha" type="password" autocomplete="current-password" />
+                    </div>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        <flux:button variant="danger" wire:click="resetSystem" wire:loading.attr="disabled" wire:target="resetSystem" :disabled="! $resetAgree || ! $resetNameOk">Zerar sistema</flux:button>
+                        <flux:button wire:click="cancelReset">Cancelar</flux:button>
+                    </div>
+                @else
+                    <p class="mb-3 text-sm text-ink-2">Apaga todos os dados e todos os backups e deixa o sistema como recém-instalado.</p>
+                    <flux:button variant="danger" wire:click="askReset" wire:loading.attr="disabled" wire:target="askReset">Zerar sistema</flux:button>
+                @endif
+            </div>
+        </x-panel>
     </div>
 </x-settings-page>

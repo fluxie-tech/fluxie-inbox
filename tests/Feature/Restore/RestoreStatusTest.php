@@ -34,7 +34,7 @@ class RestoreStatusTest extends TestCase
                 ['key' => 'swap', 'label' => 'Trocando o banco', 'state' => 'pending'],
             ],
         ]);
-        $this->assertSame(['message', 'status', 'steps', 'title'], collect($response->json())->keys()->sort()->values()->all());
+        $this->assertSame(['kind', 'message', 'status', 'steps', 'title'], collect($response->json())->keys()->sort()->values()->all());
     }
 
     public function test_estado_idle_sem_restauracao(): void
@@ -68,6 +68,44 @@ class RestoreStatusTest extends TestCase
             ->assertOk()
             ->assertSee('O arquivo está vazio.')
             ->assertSee(route('configuracoes.backups'), false);
+    }
+
+    public function test_pagina_do_zerar_com_falha_mostra_a_mensagem_do_andamento_e_volta_para_o_instalar(): void
+    {
+        $progress = new RestoreProgress;
+        $progress->begin('Zerando o sistema', ['reset-down', 'reset-waha'], 'reset');
+        $progress->fail('Falhou ao apagar as mídias. Para continuar: php artisan app:reset-system --continue');
+
+        $this->get('/restauracao')
+            ->assertOk()
+            ->assertSee('Zerando o sistema')
+            ->assertSee('Falhou ao apagar as mídias. Para continuar: php artisan app:reset-system --continue')
+            ->assertDontSee('data-reset-hint', false)
+            ->assertSee('href="'.route('instalar').'"', false)
+            ->assertSee('content="'.route('instalar').'"', false)
+            ->assertDontSee(route('configuracoes.backups'), false);
+    }
+
+    public function test_pagina_do_zerar_concluido_redireciona_para_o_instalar(): void
+    {
+        $progress = new RestoreProgress;
+        $progress->begin('Zerando o sistema', ['reset-down'], 'reset');
+        $progress->finish('Sistema zerado.');
+
+        $this->get('/restauracao')
+            ->assertOk()
+            ->assertSee('<meta name="restore-done-url" content="'.route('instalar').'">', false)
+            ->assertSee('Sistema zerado.');
+    }
+
+    public function test_pagina_da_restauracao_segue_para_o_backup(): void
+    {
+        $this->running()->fail('O arquivo está vazio.');
+
+        $this->get('/restauracao')
+            ->assertSee('<meta name="restore-done-url" content="'.route('configuracoes.backups').'">', false)
+            ->assertSee('Voltar para o Backup do banco')
+            ->assertDontSee('data-reset-hint', false);
     }
 
     public function test_pagina_sem_restauracao_manda_de_volta_para_o_backup(): void

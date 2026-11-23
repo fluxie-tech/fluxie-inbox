@@ -110,6 +110,15 @@ class BackupsRestoreTest extends TestCase
             ->assertDontSee('Digite RESTAURAR');
     }
 
+    public function test_restauracao_recusada_durante_o_zerar(): void
+    {
+        app(RestoreProgress::class)->begin('Zerando o sistema', ['reset-down'], 'reset');
+
+        $this->page()->call('chooseBackup', self::NAME)->set('confirm', 'RESTAURAR')->call('restore')
+            ->assertSet('problem', 'Há um zerar do sistema em andamento.');
+        Queue::assertNothingPushed();
+    }
+
     public function test_pedido_com_a_trava_tomada_nao_despacha_e_o_pedido_solta_a_trava(): void
     {
         $page = $this->page()->call('chooseBackup', self::NAME)->set('confirm', 'RESTAURAR');

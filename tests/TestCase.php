@@ -7,7 +7,10 @@ use App\Services\Setup\SetupState;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Laravel\Fortify\Features;
 
 abstract class TestCase extends BaseTestCase
@@ -25,6 +28,12 @@ abstract class TestCase extends BaseTestCase
         }
 
         parent::setUp();
+
+        // O zerar apaga o disco `local` e a pasta tmp dos dumps: nenhum teste pode chegar ao `storage/app` do desenvolvedor.
+        Storage::fake('local');
+        $tmp = sys_get_temp_dir().'/fluxie-test-'.Str::uuid();
+        config(['backup.tmp_path' => $tmp]);
+        $this->beforeApplicationDestroyed(fn () => File::deleteDirectory($tmp));
 
         // No CI o cache é o Redis e sobrevive entre os testes: o bloqueio de um job único (`ShouldBeUnique*`) deixado por
         // um teste, que usa `Queue::fake()` e nunca processa o job, impediria o dispatch do mesmo id em outro teste.

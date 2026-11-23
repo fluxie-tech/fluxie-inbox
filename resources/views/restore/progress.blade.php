@@ -1,12 +1,16 @@
+@php
+    $reset = $state['kind'] === 'reset';
+    $back = $reset ? route('instalar') : route('configuracoes.backups');
+@endphp
 <!DOCTYPE html>
 {{-- Sem `CompanySettings`, `@auth` ou qualquer consulta ao banco: esta página precisa abrir durante a troca do banco. --}}
 <html lang="pt-BR">
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Restauração do banco - {{ config('app.name') }}</title>
+        <title>{{ $reset ? 'Zerar o sistema' : 'Restauração do banco' }} - {{ config('app.name') }}</title>
         <meta name="restore-state-url" content="{{ route('restauracao.estado') }}">
-        <meta name="restore-done-url" content="{{ route('configuracoes.backups') }}">
+        <meta name="restore-done-url" content="{{ $back }}">
         @fonts
         @fluxAppearance
         @vite(['resources/css/app.css', 'resources/js/restore-progress.js'])
@@ -34,7 +38,7 @@
                 @endif
             </p>
 
-            <a data-back href="{{ route('configuracoes.backups') }}" @class(['text-sm font-medium text-accent-content underline', 'hidden' => $state['status'] === 'running'])>Voltar para o Backup do banco</a>
+            <a data-back href="{{ $back }}" @class(['text-sm font-medium text-accent-content underline', 'hidden' => $state['status'] === 'running'])>{{ $reset ? 'Voltar para o início' : 'Voltar para o Backup do banco' }}</a>
         </main>
     </body>
 </html>

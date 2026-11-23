@@ -11,6 +11,14 @@ use Illuminate\Support\Facades\DB;
  */
 class Maintenance
 {
+    public const ALREADY_DOWN = 'O sistema já está em manutenção.';
+
+    /** Conexão → filas que o `docker/worker.sh` consome. */
+    public const QUEUES = [
+        'redis' => ['outbound', 'inbound', 'realtime', 'default', 'google', 'media'],
+        'redis_history' => ['history'],
+    ];
+
     /**
      * O que falta no ambiente para a troca funcionar, ou `null` se está pronto. Só o driver de cache vale para vários containers (o de
      * arquivo pausaria só o container do job), e o estado da manutenção, as sessões e o cache precisam estar fora do banco: o banco
@@ -23,7 +31,7 @@ class Maintenance
             $this->usesDatabase(config('app.maintenance.store')) => 'O estado da manutenção está guardado no banco (APP_MAINTENANCE_STORE): use APP_MAINTENANCE_STORE=redis, senão ele some com a troca.',
             config('session.driver') === 'database' => 'As sessões estão no banco (SESSION_DRIVER=database): use SESSION_DRIVER=redis para a página de andamento abrir durante a troca.',
             $this->usesDatabase(config('cache.default')) => 'O cache está no banco (CACHE_STORE=database): use CACHE_STORE=redis; o andamento e o lock da restauração ficam no cache.',
-            app()->isDownForMaintenance() => 'O sistema já está em manutenção.',
+            app()->isDownForMaintenance() => self::ALREADY_DOWN,
             default => null,
         };
     }
@@ -66,5 +74,25 @@ class Maintenance
     public function restartWorkers(): void
     {
         Artisan::call('queue:restart');
+    }
+
+    /** Recria o esquema vazio (sem seed); o zerar usa para deixar a instalação limpa. @throws RestoreRejected */
+    public function fresh(): void
+    {
+        if (Artisan::call('migrate:fresh', ['--force' => true]) !== 0) {
+            throw new RestoreRejected('Não foi possível recriar o banco.');
+        }
+    }
+
+    /** Esvazia as filas: um trabalho pendente apontaria para dados que acabaram de sumir. @throws RestoreRejected */
+    public function clearQueues(): void
+    {
+        foreach (self::QUEUES as $connection => $queues) {
+            foreach ($queues as $queue) {
+                if (Artisan::call('queue:clear', ['connection' => $connection, '--queue' => $queue, '--force' => true]) !== 0) {
+                    throw new RestoreRejected('Não foi possível esvaziar as filas.');
+                }
+            }
+        }
     }
 }

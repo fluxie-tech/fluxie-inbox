@@ -3,6 +3,8 @@
 namespace Tests\Feature\Backup\Restore;
 
 use App\Services\Backup\Restore\Maintenance;
+use App\Services\Backup\Restore\RestoreRejected;
+use Illuminate\Support\Facades\Artisan;
 use Tests\TestCase;
 
 class MaintenanceTest extends TestCase
@@ -60,5 +62,55 @@ class MaintenanceTest extends TestCase
         $this->artisan('down')->assertSuccessful();
 
         $this->assertStringContainsString('já está em manutenção', (string) (new Maintenance)->problem());
+    }
+
+    public function test_fresh_chama_migrate_fresh_com_force(): void
+    {
+        Artisan::shouldReceive('call')->once()->with('migrate:fresh', ['--force' => true])->andReturn(0);
+
+        (new Maintenance)->fresh();
+    }
+
+    public function test_fresh_que_falha_lanca_restore_rejected(): void
+    {
+        Artisan::shouldReceive('call')->once()->with('migrate:fresh', ['--force' => true])->andReturn(1);
+
+        $this->expectException(RestoreRejected::class);
+        $this->expectExceptionMessage('Não foi possível recriar o banco.');
+
+        (new Maintenance)->fresh();
+    }
+
+    public function test_clear_queues_limpa_todas_as_filas_do_worker(): void
+    {
+        $filas = [
+            ['redis', 'outbound'],
+            ['redis', 'inbound'],
+            ['redis', 'realtime'],
+            ['redis', 'default'],
+            ['redis', 'google'],
+            ['redis', 'media'],
+            ['redis_history', 'history'],
+        ];
+
+        foreach ($filas as [$conexao, $fila]) {
+            Artisan::shouldReceive('call')->once()
+                ->with('queue:clear', ['connection' => $conexao, '--queue' => $fila, '--force' => true])
+                ->andReturn(0);
+        }
+
+        (new Maintenance)->clearQueues();
+    }
+
+    public function test_clear_queues_que_falha_lanca_restore_rejected(): void
+    {
+        Artisan::shouldReceive('call')->once()
+            ->with('queue:clear', ['connection' => 'redis', '--queue' => 'outbound', '--force' => true])
+            ->andReturn(1);
+
+        $this->expectException(RestoreRejected::class);
+        $this->expectExceptionMessage('Não foi possível esvaziar as filas.');
+
+        (new Maintenance)->clearQueues();
     }
 }
