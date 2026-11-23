@@ -165,6 +165,26 @@ para o compose e a imagem candidatos. Para ela seguir verde:
 - Toda mudança de dados vai em migração, nunca em comando avulso, para que restaurar um backup antigo também atualize os
   dados.
 
+### Zerar sistema (só staging ou instalação de teste)
+
+Em **Configuração → Sistema**, a seção **Zerar sistema** volta a instalação ao zero: apaga o banco, os bancos guardados pelas
+restaurações, as mídias, **todos** os backups, as filas, o cache e as sessões do WhatsApp dos canais (cada canal sai com
+logout). Não tem volta. Antes, baixe um backup para fora do servidor, porque ele também é apagado.
+
+A ação vem desligada. A variável `FLUXIE_ALLOW_RESET` sai com `false` no compose. Com `true` (Coolify → Service →
+Environment, e depois reiniciar), a seção aparece só para admin. Ligue só em staging ou em instalação de teste.
+
+Ao terminar, a instalação volta ao `/instalar`, que pede o código de `SERVICE_PASSWORD_SETUP`, como numa instalação nova.
+
+Se um passo falhar, o sistema fica em manutenção e a página de andamento (`/restauracao`) mostra o comando para continuar.
+Rode-o no terminal do serviço `app` (Coolify → Service → `app` → Terminal):
+
+```
+php artisan app:reset-system --continue
+```
+
+O comando também exige `FLUXIE_ALLOW_RESET=true`: com a variável desligada, ele recusa.
+
 ### Não escalar o worker
 
 O `worker` roda vários processos de fila no mesmo container (um por tipo de trabalho). Não use réplicas dele: com mais de um
@@ -176,4 +196,6 @@ processo nas filas de envio e do Google, a ordem das mensagens se perde.
 - **Webhook não chega** → o app responde `401` quando o HMAC não confere e nada é gravado.
 - **QR pedido de novo depois de atualizar** → o volume `waha-sessions` foi apagado ou trocado.
 - **Fila parada** → confira se o serviço `worker` está saudável.
+- **Zerar falhou e o sistema ficou em manutenção** → rode `php artisan app:reset-system --continue` no terminal do `app`
+  (com `FLUXIE_ALLOW_RESET=true`); o passo a passo está em "Zerar sistema", na seção 4.
 - **404 ou certificado inválido** → o domínio do serviço `app` não é o real, ou falta um deploy depois de gravá-lo.
