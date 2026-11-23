@@ -28,10 +28,10 @@
 - Checks obrigatórios da `main`: `tests` e `static`. Os nomes desses jobs não mudam.
 - Comentários e mensagens em português, no estilo dos arquivos atuais. Commits com prefixo (`ci:`, `test:`, `docs:`).
 - Verificação de sintaxe: exatamente
-  `cd /c/Projetos/chatbot-auditoria-ci && go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 2>&1 | tail -15; echo "exit=${PIPESTATUS[0]}"`.
+  `cd /c/Projetos/chatbot-auditoria-ci && go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 2>&1 | tail -15; echo "exit=${PIPESTATUS[0]}"`.
   - O dono liberou só esta forma do comando; não acrescentar flags nem filtros.
   - Esperado: `exit=0` e nenhuma outra linha. A linha de base no início deu `exit=0`.
-  - O `.github/actionlint.yaml` (commit do plano) declara os rótulos `ubuntu-26.04` e `ubuntu-slim`, que o 1.7.7 não conhece.
+  - O `.github/actionlint.yaml` (commit do plano) declara o rótulo `ubuntu-26.04`, que o 1.7.12 (a mais recente) não conhece.
 
 ## Review Focus
 
@@ -98,9 +98,8 @@
 **Files:**
 - Modify: `.github/workflows/tests.yml:22-23` (`timeout-minutes: 20` no `tests`) e `:222-223` (`timeout-minutes: 10` no `audit`)
 - Modify: `.github/workflows/release-image.yml:113` e `:143` (`runs-on: ubuntu-26.04`)
-- Modify: `.github/actionlint.yaml` (tirar o rótulo `ubuntu-slim`)
 
-- [ ] **Step 1:** aplicar as quatro trocas e tirar `ubuntu-slim` do `.github/actionlint.yaml`.
+- [ ] **Step 1:** aplicar as quatro trocas.
 - [ ] **Step 2:** `grep -rn "ubuntu-slim" .github/` → nenhuma linha; actionlint → sem erro.
 - [ ] **Step 3: Commit** `ci: timeouts nos testes e fim do ubuntu-slim`.
 
