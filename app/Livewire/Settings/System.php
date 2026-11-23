@@ -177,6 +177,11 @@ class System extends Component
     public function askReset(): void
     {
         $this->authorize('admin');
+
+        if (config('fluxie.allow_reset') !== true) {
+            return;
+        }
+
         $this->reset('resetAgree', 'resetName', 'resetPassword');
         $this->resetProblem = app(ResetSystem::class)->problem();
         $this->resetting = true;
@@ -198,7 +203,7 @@ class System extends Component
 
         $this->resetProblem = match (true) {
             ! $this->resetAgree => 'Marque a caixa para confirmar.',
-            mb_strtolower(trim($this->resetName)) !== mb_strtolower($this->resetWord()) => 'Digite o nome da empresa exatamente como está cadastrado.',
+            ! $this->nameMatches() => 'Digite o nome da empresa exatamente como está cadastrado.',
             RateLimiter::tooManyAttempts($key, 5) => 'Muitas tentativas. Espere '.RateLimiter::availableIn($key).' segundos.',
             default => $this->checkPassword($key, $password, $user->getAuthPassword()),
         };
@@ -243,6 +248,11 @@ class System extends Component
         RateLimiter::hit($key, 60);
 
         return 'Senha incorreta.';
+    }
+
+    private function nameMatches(): bool
+    {
+        return mb_strtolower(trim($this->resetName)) === mb_strtolower($this->resetWord());
     }
 
     /** A palavra a digitar: o nome da empresa sem espaços nas pontas, ou ZERAR se ela não tiver nome. */
@@ -309,6 +319,7 @@ class System extends Component
             'confirmWord' => self::CONFIRM_WORD,
             'allowReset' => config('fluxie.allow_reset') === true,
             'resetWord' => $this->resetWord(),
+            'resetNameOk' => $this->nameMatches(),
             'last' => $last,
             'open' => $open !== null,
             'stale' => $open !== null && $open->started_at !== null && $open->started_at->lt(now()->subMinutes(self::STALE_MINUTES)),

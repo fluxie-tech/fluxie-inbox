@@ -3,12 +3,14 @@
 namespace Tests\Feature\Livewire;
 
 use App\Enums\UserRole;
+use App\Jobs\ResetSystemJob;
 use App\Livewire\Settings\System;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\Reset\ResetSystem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Livewire;
 use Mockery\MockInterface;
@@ -61,7 +63,7 @@ class ResetSystemPageTest extends TestCase
             ->assertDontSee('wire:click="askReset"', false);
     }
 
-    public function test_ligado_mostra_o_botao_e_o_modal_com_os_avisos(): void
+    public function test_ligado_mostra_o_botao_e_a_confirmacao_com_os_avisos(): void
     {
         $this->reset();
 
@@ -166,5 +168,25 @@ class ResetSystemPageTest extends TestCase
         $page->call('resetSystem')->assertNoRedirect();
 
         $lock->release();
+    }
+
+    public function test_ask_reset_com_a_variavel_desligada_nao_abre_o_painel(): void
+    {
+        $this->reset();
+        config(['fluxie.allow_reset' => false]);
+
+        Livewire::actingAs($this->admin())->test(System::class)->call('askReset')->assertSet('resetting', false)->assertSet('resetProblem', null);
+    }
+
+    public function test_segundo_clique_depois_de_comecar_nao_despacha_de_novo(): void
+    {
+        Queue::fake();
+        config(['app.maintenance.driver' => 'cache', 'app.maintenance.store' => 'array', 'session.driver' => 'array', 'cache.default' => 'array']);
+        $page = $this->filled($this->admin());
+
+        $page->call('resetSystem')->assertRedirect(route('restauracao'));
+        $page->set('resetAgree', true)->set('resetName', 'Dimetal')->set('resetPassword', 'secret-123')->call('resetSystem');
+
+        Queue::assertPushed(ResetSystemJob::class, 1);
     }
 }

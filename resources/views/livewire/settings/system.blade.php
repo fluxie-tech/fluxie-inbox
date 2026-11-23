@@ -159,7 +159,7 @@
                         <flux:input wire:model="resetPassword" label="Sua senha" type="password" autocomplete="current-password" />
                     </div>
                     <div class="mt-4 flex flex-wrap gap-2">
-                        <flux:button variant="danger" wire:click="resetSystem" wire:loading.attr="disabled" wire:target="resetSystem" :disabled="! $resetAgree || mb_strtolower(trim($resetName)) !== mb_strtolower($resetWord)">Zerar sistema</flux:button>
+                        <flux:button variant="danger" wire:click="resetSystem" wire:loading.attr="disabled" wire:target="resetSystem" :disabled="! $resetAgree || ! $resetNameOk">Zerar sistema</flux:button>
                         <flux:button wire:click="cancelReset">Cancelar</flux:button>
                     </div>
                 @else
