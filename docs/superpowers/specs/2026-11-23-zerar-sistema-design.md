@@ -114,11 +114,12 @@ Título na página de andamento: "Zerando o sistema". Os rótulos entram em `Res
 |-------|--------|-----------|
 | `reset-down` | Entrando em manutenção | `Maintenance::enter()`; webhook, fila e agenda param |
 | `reset-waha` | Desconectando o WhatsApp | para cada canal do banco: logout (ignora 404 ou sessão já desconectada) e `deleteSession()` |
+| `reset-queues` | Esvaziando as filas | `queue:clear` em todas as filas do app (`inbound`, `outbound`, `history`, `media`, `default` e as que o `docker/worker.sh` escuta, menos a do próprio job), depois espera 30 s para os jobs em voo terminarem |
 | `reset-media` | Apagando as mídias | apaga todos os objetos do disco de mídia |
 | `reset-backups` | Apagando os backups | apaga todos os objetos do disco de backup, `restauracao/` incluído |
 | `reset-databases` | Apagando bancos guardados | `AdminDatabase::drop()` em cada `stored()` e `staging()` |
 | `reset-schema` | Recriando o banco | `migrate:fresh --force`, sem seed |
-| `reset-cache` | Limpando o cache | `Cache::forget` das chaves do app que sobrevivem ao banco (abaixo) |
+| `reset-cache` | Limpando o cache | apaga por varredura todas as chaves do prefixo do app no Redis, menos as que o zerar precisa (abaixo) |
 | `reset-up` | Voltando ao ar | `queue:restart` e `Maintenance::leave()` |
 
 - **WAHA só nas sessões dos canais do banco**, nunca "todas as sessões do WAHA" (antimeta do WAHA compartilhado). *(Decisão
@@ -129,14 +130,24 @@ Título na página de andamento: "Zerando o sistema". Os rótulos entram em `Res
   não consegue mais entrar (o banco pode já estar zerado), então a página de andamento mostra o comando para continuar:
   `php artisan app:reset-system --continue`, rodado no terminal do app no Coolify. O comando roda os mesmos passos em
   sequência. Cada passo é idempotente: logout e delete aceitam 404, apagar disco vazio não falha e `migrate:fresh` repete.
-  O comando só roda se o último andamento for um zerar que falhou, ou com `--force`. A lista de sessões do WAHA lida no
+  O comando também exige `FLUXIE_ALLOW_RESET=true` (sem exceção) e só roda se o último andamento for um zerar que falhou ou
+  que ficou `running` além do prazo. Ele pula a recusa "O sistema já está em manutenção", que o próprio zerar causou. Não existe
+  `--force`. *(Decisão minha.)* A lista de sessões do WAHA lida no
   primeiro começo fica guardada no Redis junto com o andamento. *(Decisão minha: um botão sem login na página pública abriria
   uma ação destrutiva a quem tivesse o link; o terminal do Coolify já exige acesso ao painel.)*
-- **Cache**: um `Cache::flush()` apagaria o estado da manutenção e o próprio andamento, que vivem no mesmo Redis. Por isso, o
-  passo usa `forget` numa lista explícita, mantida junto de quem cria cada chave: `SetupState::CONCLUDED`, as chaves de
-  `UpdateSettings`/`ReleaseFeed` e `backup:manual`. A lista é conferida por um teste que procura `Cache::forever` e
-  `Cache::put` em `app/` e falha se aparecer chave nova sem estar na lista ou numa lista de chaves que não guardam dado
-  (ex.: limitadores). *(Decisão minha.)*
+- **Filas**: o `down` só impede os workers de pegar jobs novos; os já enfileirados carregam texto de conversa e rodariam no banco
+  zerado ao voltar. Por isso o passo `reset-queues` esvazia as filas depois do WAHA (quando não entra webhook novo) e espera 30 s
+  pelos jobs em voo, que no `inbound` levam segundos. Limite aceito: um job longo em voo (importação de histórico) pode gravar
+  depois disso; ele falha ao gravar no banco novo (canal inexistente) e a mídia que sobrar é rara. *(Decisão minha.)*
+- **Cache**: um `Cache::flush()` apagaria o estado da manutenção e o próprio andamento, que vivem no mesmo Redis. Uma lista fixa
+  de chaves não cobre as chaves por ID (`contact-name:{id}`, `presence-seen:{ticket}` etc.), que colidiriam com os IDs
+  reiniciados pelo `migrate:fresh`. Por isso, o passo varre (SCAN, nunca KEYS) as chaves com o prefixo do cache do app e apaga
+  todas, menos o andamento (`restore:state`), o estado da manutenção e a trava do zerar. Os limitadores podem ir junto.
+  *(Decisão minha.)*
+- **Tempo**: o job roda numa fila que o worker escuta com tempo suficiente (sugestão: `history`, como a restauração), com
+  `timeout` de 1 hora e `failOnTimeout`. O método `failed()` do job marca o andamento como falho, então um job morto por
+  tempo mostra o comando de continuar em vez de sumir. As mídias e os backups são apagados em lotes para não estourar
+  memória. *(Decisão minha.)*
 - **Sessões de login**: ficam no Redis e apontam para usuários que deixam de existir; o próximo request as trata como
   deslogadas. Não é preciso apagá-las.
 - **Fim**: o andamento termina com "Sistema zerado. Abra /instalar e use o código da aba Environment do Coolify." e um link
@@ -151,9 +162,12 @@ e-mail), quando, quantos canais, mídias e backups foram apagados. O log do Cool
 ## O que fica com quem constrói
 
 - Nome exato da chave em `config/` e onde ela mora (`config/fluxie.php` já existe para `resource_uuid`).
+- **Discos**: o zerar apaga a raiz do disco de mídia e do de backup, seja qual for o driver (`s3` no compose, `local` no
+  desenvolvimento). Junto vão os arquivos do bloco "Enviar mídia" dos fluxos, que também são dados da instalação. *(Decisão
+  minha.)*
 - Como apagar todos os objetos dos discos (`deleteDirectory('')`, `allFiles` em lotes ou outra forma do Flysystem/S3); precisa
   aguentar milhares de objetos sem estourar memória.
-- O layout do botão "Tentar de novo" na página de andamento.
+- Os textos da página `/restauracao` (título e o redirecionamento do JS para Backups no fim), trocados para o zerar.
 - Os textos finais, mantendo o sentido acima.
 
 ## Prova de aceite
