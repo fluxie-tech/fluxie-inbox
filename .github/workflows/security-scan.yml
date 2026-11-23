@@ -46,28 +46,16 @@ jobs:
         if: steps.base.outputs.changed == 'true'
         run: docker build -t fluxie-base:ci docker/base
 
-      - name: Build the runtime image with the branch base
-        if: steps.base.outputs.changed == 'true'
-        run: |
-          base_ref="$(sed -nE 's#^FROM ([^ ]+) AS base$#\1#p' docker/Dockerfile)"
-          docker build --target runtime -f docker/Dockerfile --build-context "${base_ref}=docker-image://fluxie-base:ci" -t fluxie-scan:ci .
-
-      # O Buildx não enxerga a base local, por isso o caminho da base mudada não usa cache.
-      - name: Set up Buildx
-        if: steps.base.outputs.changed != 'true'
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
       - name: Build the runtime image
-        if: steps.base.outputs.changed != 'true'
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          file: docker/Dockerfile
-          target: runtime
-          tags: fluxie-scan:ci
-          load: true
-          provenance: false
-          cache-from: type=gha,scope=runtime
+        env:
+          BASE_CHANGED: ${{ steps.base.outputs.changed }}
+        run: |
+          args=()
+          if [ "$BASE_CHANGED" = "true" ]; then
+            base_ref="$(sed -nE 's#^FROM ([^ ]+) AS base$#\1#p' docker/Dockerfile)"
+            args+=(--build-context "${base_ref}=docker-image://fluxie-base:ci")
+          fi
+          docker build --target runtime -f docker/Dockerfile "${args[@]}" -t fluxie-scan:ci .
 
       # Falha só com vulnerabilidade CRÍTICA ou ALTA que já tenha correção: o que não tem correção publicada
       # não é acionável e deixaria o job vermelho para sempre.
