@@ -148,7 +148,7 @@
                 @elseif ($resetting)
                     <div class="space-y-2 text-sm text-ink-2">
                         <p class="text-danger">Isto apaga TUDO e não tem volta, inclusive TODOS os backups guardados no sistema.</p>
-                        <p>Recomendado: gere um backup e baixe-o antes. <a href="{{ route('configuracoes.backups') }}" wire:navigate class="font-medium text-accent-content underline underline-offset-2">Ir para Backups</a></p>
+                        <p>Recomendado: gere um backup e baixe-o antes. <a href="{{ route('configuracoes.backups') }}" wire:navigate class="inline-flex min-h-6 items-center font-medium text-accent-content underline underline-offset-2">Ir para Backups</a></p>
                     </div>
                     @if ($resetProblem !== null)
                         <p class="mt-3 text-sm text-danger" role="alert">{{ $resetProblem }}</p>

@@ -9,7 +9,7 @@ return [
     'build' => env('FLUXIE_BUILD', 'dev'),
 
     /** Liga o "Zerar sistema" (tela e comando); desligado por padrão, porque destrói a instalação. */
-    'allow_reset' => (bool) env('FLUXIE_ALLOW_RESET', false),
+    'allow_reset' => filter_var(env('FLUXIE_ALLOW_RESET', false), FILTER_VALIDATE_BOOLEAN),
 
     'releases_repo' => env('FLUXIE_RELEASES_REPO', 'fluxie-tech/fluxie-inbox'),
 

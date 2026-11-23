@@ -46,6 +46,7 @@ class ResetSystemJob implements ShouldQueue
             return;
         }
 
+        $e === null || report($e);
         $progress->fail('O zerar foi interrompido. Para continuar: php artisan app:reset-system --continue');
     }
 }

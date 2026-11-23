@@ -56,15 +56,18 @@ class ResetSystemCommandTest extends TestCase
     {
         $this->reset->shouldReceive('canContinue')->andReturn(true);
         $this->reset->shouldReceive('problem')->with(true)->andReturn(null);
-        $this->reset->shouldReceive('run')->once();
+        $this->reset->shouldReceive('wipeLocalFiles')->once()->andReturn(3)->ordered();
+        $this->reset->shouldReceive('run')->once()->ordered();
 
         $this->artisan('app:reset-system --continue')
+            ->expectsOutputToContain('3 arquivos locais apagados')
             ->expectsOutputToContain('Sistema zerado. Abra /instalar e use o código da aba Environment do Coolify.')
             ->assertExitCode(0);
     }
 
     public function test_problema_recusa_sem_rodar(): void
     {
+        $this->reset->shouldNotReceive('wipeLocalFiles');
         $this->reset->shouldReceive('canContinue')->andReturn(true);
         $this->reset->shouldReceive('problem')->with(true)->andReturn('O WAHA não respondeu. Confira se ele está no ar antes de zerar.');
         $this->reset->shouldNotReceive('run');
@@ -78,6 +81,7 @@ class ResetSystemCommandTest extends TestCase
     {
         $this->reset->shouldReceive('canContinue')->andReturn(true);
         $this->reset->shouldReceive('problem')->with(true)->andReturn(null);
+        $this->reset->shouldReceive('wipeLocalFiles')->andReturn(0);
         $this->reset->shouldReceive('run')->once()->andThrow(new RuntimeException('segredo'));
 
         $this->artisan('app:reset-system --continue')
@@ -90,6 +94,7 @@ class ResetSystemCommandTest extends TestCase
     {
         $this->reset->shouldReceive('canContinue')->andReturn(true);
         $this->reset->shouldReceive('problem')->with(true)->andReturn(null);
+        $this->reset->shouldReceive('wipeLocalFiles')->andReturn(0);
         $this->reset->shouldReceive('run')->once()->andThrow(new RestoreRejected('O pg_restore falhou (código 1).'));
 
         $this->artisan('app:reset-system --continue')

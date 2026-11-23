@@ -114,12 +114,12 @@ Título na página de andamento: "Zerando o sistema". Os rótulos entram em `Res
 |-------|--------|-----------|
 | `reset-down` | Entrando em manutenção | `Maintenance::enter()`; webhook, fila e agenda param |
 | `reset-waha` | Desconectando o WhatsApp | para cada canal do banco: logout (ignora 404 ou sessão já desconectada) e `deleteSession()` |
-| `reset-queues` | Esvaziando as filas | `queue:clear` em todas as filas do app (`inbound`, `outbound`, `history`, `media`, `default` e as que o `docker/worker.sh` escuta, menos a do próprio job), depois espera 30 s para os jobs em voo terminarem |
+| `reset-queues` | Esvaziando as filas | `queue:clear` em todas as filas do app (`inbound`, `outbound`, `history`, `media`, `default` e as que o `docker/worker.sh` escuta, **inclusive a `history`, que é a do próprio job**), depois espera 30 s para os jobs em voo terminarem |
 | `reset-media` | Apagando as mídias | apaga todos os objetos do disco de mídia |
 | `reset-backups` | Apagando os backups | apaga todos os objetos do disco de backup, `restauracao/` incluído |
 | `reset-databases` | Apagando bancos guardados | `AdminDatabase::drop()` em cada `stored()` e `staging()` |
 | `reset-schema` | Recriando o banco | `migrate:fresh --force`, sem seed |
-| `reset-cache` | Limpando o cache | guarda o andamento, `Cache::flush()` e regrava o andamento (abaixo) |
+| `reset-cache` | Limpando o cache e as sessões | guarda o andamento, `Cache::flush()`, regrava o andamento (abaixo) e apaga as sessões de login (`SessionPurger`) |
 | `reset-up` | Voltando ao ar | `queue:restart` e `Maintenance::leave()` |
 
 - **WAHA só nas sessões dos canais do banco**, nunca "todas as sessões do WAHA" (antimeta do WAHA compartilhado). *(Decisão
@@ -148,8 +148,19 @@ Título na página de andamento: "Zerando o sistema". Os rótulos entram em `Res
   `failOnTimeout`. O método `failed()` do job marca o andamento como falho, então um job morto por
   tempo mostra o comando de continuar em vez de sumir. As mídias e os backups são apagados em lotes para não estourar
   memória. *(Decisão minha.)*
-- **Sessões de login**: ficam no Redis e apontam para usuários que deixam de existir; o próximo request as trata como
-  deslogadas. Não é preciso apagá-las.
+- **Sessões de login**: ficam no Redis DB 0 (conexão `default`), fora do banco do cache, e o `Cache::flush()` não as alcança.
+  O `migrate:fresh` reinicia os IDs de `users` e o `SessionGuard` só faz `retrieveById`: quem tinha sessão aberta com
+  `user_id=1` entraria como o admin novo. *(Correção da premissa original, que dizia que o próximo request as trataria como
+  deslogadas.)* Por isso o `reset-cache` também apaga as sessões: `SessionPurger` faz SCAN (nunca KEYS) no store de sessão e
+  apaga só as chaves `<prefixo do store><ID de 40 caracteres>`, sem tocar em locks nem filas. Só o store Redis é varrido (o
+  `file` não é limpo; o `database` já é recusado pela manutenção).
+- **Arquivos locais**: o volume `app-storage` (disco `local`, com dumps enviados e anexos, e `backup.tmp_path`) só é montado
+  no `app`, e o job roda no `worker`. `ResetSystem::wipeLocalFiles()` roda no `start()` (request, no `app`) e no
+  `--continue` (terminal do `app`); `storage/app/public` não é tocado.
+- **`--continue`**: `STARTED` expira em 24 h e `canContinue()` exige o sistema em manutenção. No `run()`, as sessões do WAHA
+  são as guardadas mais as dos canais do banco de agora (se a tabela não existir, só as guardadas).
+- **Locks**: o `run()` segura 900 s (mais que o `timeout` do job) o lock `restore-database` e o `backup-database`, e o
+  `problem()` recusa com um backup diário em andamento.
 - **Fim**: o andamento termina com "Sistema zerado. Abra /instalar e use o código da aba Environment do Coolify." e um link
   para `/instalar`.
 

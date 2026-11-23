@@ -168,8 +168,8 @@ para o compose e a imagem candidatos. Para ela seguir verde:
 ### Zerar sistema (só staging ou instalação de teste)
 
 Em **Configurações → Sistema**, a seção **Zerar sistema** volta a instalação ao zero: apaga o banco, os bancos guardados pelas
-restaurações, as mídias, **todos** os backups, as filas, o cache e as sessões do WhatsApp dos canais (cada canal sai com
-logout). Não tem volta. Antes, baixe um backup para fora do servidor, porque ele também é apagado.
+restaurações, as mídias, **todos** os backups, os arquivos locais, as filas, o cache, as sessões de login e as sessões do
+WhatsApp dos canais (cada canal sai com logout). Não tem volta. Antes, baixe um backup para fora do servidor, porque ele também é apagado.
 
 A ação vem desligada. A variável `FLUXIE_ALLOW_RESET` sai com `false` no compose. Com `true` (Coolify → Service →
 Environment, e depois reiniciar), a seção aparece só para admin. Ligue só em staging ou em instalação de teste.
@@ -183,7 +183,12 @@ Rode-o no terminal do serviço `app` (Coolify → Service → `app` → Terminal
 php artisan app:reset-system --continue
 ```
 
-O comando também exige `FLUXIE_ALLOW_RESET=true`: com a variável desligada, ele recusa.
+O comando também exige `FLUXIE_ALLOW_RESET=true`: com a variável desligada, ele recusa. Ele só continua com o sistema em
+manutenção e por até 24 h depois do começo.
+
+Último recurso: se o worker morreu e a página parou de andar, ou se o WAHA está fora do ar de vez e o zerar não passa, rode
+`php artisan up` no terminal do `app`. O sistema volta ao ar com os dados que ainda não foram apagados (o que já se foi não
+volta).
 
 ### Não escalar o worker
 

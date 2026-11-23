@@ -13,30 +13,43 @@ use App\Services\Backup\Restore\RestoreProgress;
 use App\Services\Backup\Restore\RestoreRejected;
 use App\Services\Waha\WahaClient;
 use App\Services\Waha\WahaRequestException;
+use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Sleep;
 use Throwable;
 
 /**
- * Zera a instalação (banco, bancos guardados, mídias, backups, filas, cache e sessões do WAHA) em manutenção e a devolve ao
+ * Zera a instalação (banco, bancos guardados, mídias, backups, arquivos locais, filas, cache, sessões de login e sessões do WAHA) em manutenção e a devolve ao
  * /instalar. Cada passo é idempotente: o `--continue` do comando repete os passos depois de uma falha.
  */
 class ResetSystem
 {
     public const STEPS = ['reset-down', 'reset-waha', 'reset-queues', 'reset-media', 'reset-backups', 'reset-databases', 'reset-schema', 'reset-cache', 'reset-up'];
 
-    /** Presente do começo até o `reset-cache`: é o que libera o `--continue`. */
+    /** Presente do começo até o `reset-cache`, por no máximo 24 h: é o que libera o `--continue`. */
     public const STARTED = 'reset:started';
+
+    private const STARTED_HOURS = 24;
 
     /** As sessões do WAHA dos canais, lidas antes de o banco ser zerado (`list<string>`). */
     public const SESSIONS = 'reset:waha-sessions';
 
     /** O mesmo lock da restauração: os dois nunca rodam juntos (a conexão de locks não é a do `Cache::flush()`). */
     public const LOCK = 'restore-database';
+
+    /** O mesmo lock do backup diário (`RunBackup`): ele não pode começar no meio do zerar. */
+    private const BACKUP_LOCK = 'backup-database';
+
+    /** Acima do `timeout` do job (840 s): o lock não pode soltar antes de o job acabar. */
+    private const LOCK_SECONDS = 900;
+
+    private const BACKUP_BUSY = 'Há um backup em andamento; espere ele terminar.';
 
     private const COMMAND = 'php artisan app:reset-system --continue';
 
@@ -45,6 +58,7 @@ class ResetSystem
         private readonly AdminDatabase $admin,
         private readonly RestoreProgress $progress,
         private readonly ManualBackupState $backupState,
+        private readonly SessionPurger $sessionPurger,
     ) {}
 
     /** O que impede de zerar agora, ou `null`. `$continuing` ignora o "já está em manutenção" (o próprio zerar o causou) e o andamento. */
@@ -59,6 +73,7 @@ class ResetSystem
             ! $continuing && $this->progress->isRunning() => 'Há uma restauração ou um zerar em andamento.',
             SystemUpdate::open() !== null => 'Há uma atualização em andamento.',
             $this->backupState->isRunning() => 'Há um backup manual em andamento.',
+            $this->backupRunning() => self::BACKUP_BUSY,
             default => $this->wahaProblem(),
         };
     }
@@ -66,10 +81,11 @@ class ResetSystem
     public function start(string $actor): void
     {
         $sessions = $this->channelSessions();
+        $files = $this->wipeLocalFiles();
         Cache::forever(self::SESSIONS, $sessions);
-        Cache::forever(self::STARTED, true);
+        Cache::put(self::STARTED, true, now()->addHours(self::STARTED_HOURS));
         $this->progress->begin('Zerando o sistema', self::STEPS, 'reset');
-        Log::warning('Zerar o sistema pedido por '.$actor.' ('.count($sessions).' canais).');
+        Log::warning('Zerar o sistema pedido por '.$actor.' ('.count($sessions).' canais, '.$files.' arquivos locais apagados).');
 
         ResetSystemJob::dispatch();
     }
@@ -78,23 +94,36 @@ class ResetSystem
     {
         $state = $this->progress->get();
 
-        // Depois do `reset-cache` o STARTED já foi embora; uma falha no `reset-up` ainda precisa poder continuar.
-        return Cache::has(self::STARTED) || ($state['kind'] === 'reset' && $state['status'] === 'failed');
+        // Depois do `reset-cache` o STARTED já foi embora; uma falha no `reset-up` ainda precisa poder continuar. Só em manutenção:
+        // com o sistema no ar não há zerar parado no meio, e o `--continue` apagaria uma instalação funcionando.
+        return app()->isDownForMaintenance() && (Cache::has(self::STARTED) || ($state['kind'] === 'reset' && $state['status'] === 'failed'));
+    }
+
+    /**
+     * Esvazia o volume `app-storage`, que só o serviço `app` monta (por isso roda no request e no `--continue`, nunca no job):
+     * o disco `local` (dumps enviados, anexos do compositor, bloco "Enviar mídia") e a pasta dos dumps órfãos. O `public` fica.
+     *
+     * @return int quantos arquivos foram apagados
+     */
+    public function wipeLocalFiles(): int
+    {
+        $count = $this->empty(Storage::disk('local'));
+        $tmp = config()->string('backup.tmp_path');
+
+        if (is_dir($tmp)) {
+            $count += count(File::allFiles($tmp, hidden: true));
+            File::cleanDirectory($tmp);
+        }
+
+        return $count;
     }
 
     /** @throws RestoreRejected|Throwable */
     public function run(): void
     {
-        $lock = Cache::lock(self::LOCK, 1800);
-
-        if (! $lock->get()) {
-            $this->progress->fail('Já há uma restauração ou zerar em andamento.');
-
-            throw new RestoreRejected('Já há uma restauração ou zerar em andamento.');
-        }
-
+        $locks = $this->lock();
         $counts = ['mídias' => 0, 'backups' => 0];
-        $sessions = $this->storedSessions();
+        $sessions = $this->sessionsToDisconnect();
 
         try {
             $this->step('reset-down', function (): void {
@@ -123,6 +152,7 @@ class ResetSystem
                 $state = $this->progress->get();
                 Cache::flush();
                 $this->progress->replace($state);
+                $this->sessionPurger->purge();
             });
             $this->step('reset-up', function (): void {
                 $this->maintenance->restartWorkers();
@@ -135,12 +165,59 @@ class ResetSystem
 
             throw $e;
         } finally {
-            $lock->release();
+            array_map(fn (Lock $lock) => $lock->release(), $locks);
         }
 
         $message = 'Sistema zerado. Abra /instalar e use o código da aba Environment do Coolify.';
         $this->progress->finish($message);
         Log::warning($message.' '.count($sessions).' canais, '.$counts['mídias'].' mídias e '.$counts['backups'].' backups apagados.');
+    }
+
+    /**
+     * O lock da restauração e o do backup diário, juntos até o fim do zerar.
+     *
+     * @return list<Lock>
+     *
+     * @throws RestoreRejected
+     */
+    private function lock(): array
+    {
+        $restore = Cache::lock(self::LOCK, self::LOCK_SECONDS);
+
+        if (! $restore->get()) {
+            $this->refuse('Já há uma restauração ou zerar em andamento. Espere alguns minutos e rode de novo: '.self::COMMAND);
+        }
+
+        $backup = Cache::lock(self::BACKUP_LOCK, self::LOCK_SECONDS);
+
+        if (! $backup->get()) {
+            $restore->release();
+            $this->refuse(self::BACKUP_BUSY.' Espere alguns minutos e rode de novo: '.self::COMMAND);
+        }
+
+        return [$restore, $backup];
+    }
+
+    /** @throws RestoreRejected */
+    private function refuse(string $message): never
+    {
+        $this->progress->fail($message);
+
+        throw new RestoreRejected($message);
+    }
+
+    /** O backup diário em andamento: o lock é tomado e solto na hora, só para ver se está ocupado. */
+    private function backupRunning(): bool
+    {
+        $lock = Cache::lock(self::BACKUP_LOCK, 5);
+
+        if (! $lock->get()) {
+            return true;
+        }
+
+        $lock->release();
+
+        return false;
     }
 
     private function step(string $key, callable $work): void
@@ -169,6 +246,23 @@ class ResetSystem
         }
 
         return null;
+    }
+
+    /**
+     * As sessões guardadas no começo mais as dos canais de agora (um canal criado depois também sai). O banco pode estar sem a
+     * tabela, num `migrate:fresh` interrompido: aí valem só as guardadas.
+     *
+     * @return list<string>
+     */
+    private function sessionsToDisconnect(): array
+    {
+        try {
+            $current = $this->channelSessions();
+        } catch (QueryException) {
+            $current = [];
+        }
+
+        return array_values(array_unique([...$this->storedSessions(), ...$current]));
     }
 
     /** @return list<string> */

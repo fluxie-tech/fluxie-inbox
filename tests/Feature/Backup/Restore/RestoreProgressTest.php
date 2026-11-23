@@ -29,6 +29,14 @@ class RestoreProgressTest extends TestCase
         $this->assertSame('restore', $progress->get()['kind']);
     }
 
+    public function test_o_passo_do_cache_do_zerar_diz_que_limpa_as_sessoes(): void
+    {
+        $progress = new RestoreProgress;
+        $progress->begin('Zerando o sistema', ['reset-cache'], 'reset');
+
+        $this->assertSame('Limpando o cache e as sessões', $progress->get()['steps'][0]['label']);
+    }
+
     public function test_estado_sem_kind_ou_idle_vale_restore(): void
     {
         $this->assertSame('restore', (new RestoreProgress)->get()['kind']);

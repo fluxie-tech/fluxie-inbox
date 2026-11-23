@@ -40,6 +40,9 @@ class ResetSystemCommand extends Command
             return self::FAILURE;
         }
 
+        // O volume dos arquivos locais só o `app` monta, e o job roda no `worker`: aqui o terminal é do `app`.
+        $this->line($reset->wipeLocalFiles().' arquivos locais apagados.');
+
         try {
             $reset->run();
         } catch (RestoreRejected $e) {

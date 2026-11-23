@@ -26,7 +26,7 @@ class RestoreProgress
         'reset-backups' => 'Apagando os backups',
         'reset-databases' => 'Apagando bancos guardados',
         'reset-schema' => 'Recriando o banco',
-        'reset-cache' => 'Limpando o cache',
+        'reset-cache' => 'Limpando o cache e as sessões',
         'reset-up' => 'Voltando ao ar',
     ];
 
@@ -103,23 +103,34 @@ class RestoreProgress
             return $idle;
         }
 
-        $steps = [];
-
-        foreach ($state['steps'] as $step) {
-            if (is_array($step) && is_string($step['key'] ?? null) && is_string($step['label'] ?? null) && is_string($step['state'] ?? null)) {
-                $steps[] = ['key' => $step['key'], 'label' => $step['label'], 'state' => $step['state']];
-            }
-        }
-
         $text = fn (mixed $value): string => is_string($value) ? $value : '';
 
         return [
             'status' => $text($state['status']),
             'title' => $text($state['title']),
-            'steps' => $steps,
+            'steps' => $this->normalizedSteps($state['steps']),
             'message' => $text($state['message']),
             'kind' => ($state['kind'] ?? null) === 'reset' ? 'reset' : 'restore',
         ];
+    }
+
+    /**
+     * Só os passos bem formados (o estado vem do cache, que um estado velho ou quebrado pode ter deixado torto).
+     *
+     * @param  array<mixed>  $raw
+     * @return list<array{key: string, label: string, state: string}>
+     */
+    private function normalizedSteps(array $raw): array
+    {
+        $steps = [];
+
+        foreach ($raw as $step) {
+            if (is_array($step) && is_string($step['key'] ?? null) && is_string($step['label'] ?? null) && is_string($step['state'] ?? null)) {
+                $steps[] = ['key' => $step['key'], 'label' => $step['label'], 'state' => $step['state']];
+            }
+        }
+
+        return $steps;
     }
 
     private function mark(string $key, string $to): void

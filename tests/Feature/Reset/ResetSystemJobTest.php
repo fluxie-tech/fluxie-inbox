@@ -6,6 +6,7 @@ use App\Jobs\ResetSystemJob;
 use App\Services\Backup\Restore\RestoreProgress;
 use App\Services\Backup\Restore\RestoreRejected;
 use App\Services\Reset\ResetSystem;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Tests\TestCase;
@@ -31,6 +32,20 @@ class ResetSystemJobTest extends TestCase
         $state = app(RestoreProgress::class)->get();
         $this->assertSame('failed', $state['status']);
         $this->assertStringContainsString('app:reset-system --continue', $state['message']);
+    }
+
+    public function test_failed_por_tempo_reporta_o_erro_e_por_falha_de_passo_nao_reporta_de_novo(): void
+    {
+        Exceptions::fake();
+        $progress = app(RestoreProgress::class);
+        $progress->begin('Zerando o sistema', ResetSystem::STEPS, 'reset');
+
+        (new ResetSystemJob)->failed(new RuntimeException('tempo'));
+        Exceptions::assertReported(fn (RuntimeException $e) => $e->getMessage() === 'tempo');
+
+        Exceptions::fake();
+        (new ResetSystemJob)->failed(new RuntimeException('de novo'));
+        Exceptions::assertNothingReported();
     }
 
     public function test_failed_preserva_a_mensagem_especifica_ja_gravada(): void
