@@ -38,8 +38,6 @@
                 @endif
             </p>
 
-            <p data-reset-hint @class(['text-sm text-ink-2', 'hidden' => ! ($reset && $state['status'] === 'failed')])>Para continuar, rode no terminal do app no Coolify: <code class="font-mono">php artisan app:reset-system --continue</code></p>
-
             <a data-back href="{{ $back }}" @class(['text-sm font-medium text-accent-content underline', 'hidden' => $state['status'] === 'running'])>{{ $reset ? 'Voltar para o início' : 'Voltar para o Backup do banco' }}</a>
         </main>
     </body>
