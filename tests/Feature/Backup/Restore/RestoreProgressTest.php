@@ -56,18 +56,25 @@ class RestoreProgressTest extends TestCase
         $this->assertTrue($progress->isRunning());
     }
 
-    public function test_replace_de_estado_terminado_usa_o_ttl_de_terminado(): void
+    public function test_replace_grava_com_ttl_de_terminado_ou_de_andamento_conforme_o_status(): void
     {
         $progress = new RestoreProgress;
         $progress->begin('Zerando o sistema', ['reset-down'], 'reset');
+        $running = $progress->get();
         $progress->finish('ok');
-        $state = $progress->get();
-        Cache::flush();
+        $done = $progress->get();
 
-        $progress->replace($state);
+        $ttls = [];
+        Cache::shouldReceive('put')->twice()->andReturnUsing(function (string $key, mixed $value, \DateTimeInterface $ttl) use (&$ttls): bool {
+            $ttls[] = (int) round(now()->diffInMinutes($ttl, true));
 
-        $this->travel(2)->hours();
-        $this->assertSame('done', $progress->get()['status']);
+            return true;
+        });
+
+        $progress->replace($done);
+        $progress->replace($running);
+
+        $this->assertSame([24 * 60, 60], $ttls);
     }
 
     public function test_comeca_ordena_e_termina_os_passos(): void
