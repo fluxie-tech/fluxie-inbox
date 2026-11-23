@@ -27,7 +27,7 @@ runs:
       run: |
         tested=false
         if [ "$EVENT" = pull_request ]; then
-          if git diff --name-only HEAD^1 HEAD | "$GITHUB_ACTION_PATH/../../scripts/only-docs.sh"; then
+          if git -c core.quotepath=off diff --name-only --no-renames HEAD^1 HEAD | "$GITHUB_ACTION_PATH/../../scripts/only-docs.sh"; then
             tested=true
             echo "::notice::PR só de docs; suíte não repetida"
           fi

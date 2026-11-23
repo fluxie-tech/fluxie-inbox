@@ -16,9 +16,9 @@ concurrency:
 jobs:
   # A main exige PR atualizado (strict), então o push na main traz a mesma árvore que o PR já testou. Em tests e static, o
   # passo already-tested consulta se essa árvore passou num run verde deste workflow, num PR do próprio repositório, ou se o
-  # PR só mexe em docs; se sim, os passos seguintes não repetem o trabalho. A consulta fica dentro do job (e não num job próprio) para que
-  # uma falha ou um runner que não sai da fila nunca deixe o run vermelho e trave o release-image: qualquer erro deixa
-  # tested=false e tudo roda. O audit roda sempre: aviso novo depende do dia, não da árvore.
+  # PR só mexe em docs; se sim, os passos seguintes não repetem o trabalho. A consulta fica dentro do job (e não num job
+  # próprio) para que uma falha ou um runner que não sai da fila nunca deixe o run vermelho e trave o release-image:
+  # qualquer erro deixa tested=false e tudo roda. O audit roda sempre: aviso novo depende do dia, não da árvore.
   tests:
     runs-on: ubuntu-26.04
     permissions:
