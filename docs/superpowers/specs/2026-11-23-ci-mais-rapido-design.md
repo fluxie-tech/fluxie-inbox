@@ -13,7 +13,7 @@ runner maior fora de questão, cache de 10 GB por repositório.
 2. Builds da imagem runtime com cache de camadas (Composer e npm), hoje de 36 a 46 s cada.
 3. Upgrade smoke em job próprio, em paralelo ao compose smoke: ~50 s a menos de espera nos PRs que mexem em docker.
 4. `compose-smoke` sem o gatilho `push` na main: o `edge` do release-image já refaz o smoke e o upgrade.
-5. PR só de docs (`docs/**` ou `*.md`) pula os passos pesados de `tests` e `static`, com o check obrigatório verde.
+5. PR só de docs (arquivo em `docs/` ou `.md` na raiz) pula os passos pesados de `tests` e `static`, com o check obrigatório verde.
 6. `compose-asset` e `production` saem do `ubuntu-slim` (fila de até 11 min; o `already-tested` saiu dele pelo mesmo motivo).
 7. `timeout-minutes` nos jobs `tests` (20) e `audit` (10). Hoje valem 360 min, e a suíte trava em vez de falhar sem Postgres.
 
@@ -33,7 +33,7 @@ runner maior fora de questão, cache de 10 GB por repositório.
 ## Abordagens escolhidas pelo dono
 
 1. **Pulo de docs: A.** Um passo nos jobs `tests` e `static` compara o merge commit com o primeiro pai (`HEAD^1`, checkout com
-   `fetch-depth: 2`). Se todo arquivo mudado estiver em `docs/` ou terminar em `.md`, ele grava `tested=true`, a saída que os
+   `fetch-depth: 2`). Se todo arquivo mudado estiver em `docs/` ou for `.md` na raiz, ele grava `tested=true`, a saída que os
    passos seguintes já testam.
    - Recusadas: `dorny/paths-filter` (dependência para um `git diff`) e `paths-ignore` (deixa o check obrigatório pendente).
 2. **Cache Docker: A.** Usar `docker/build-push-action` com `load: true` e `cache-from: type=gha`, como o `base-image`.
@@ -50,7 +50,7 @@ runner maior fora de questão, cache de 10 GB por repositório.
   O código é idêntico ao da árvore anterior, que já passou.
 - **Scope do cache.** Todos os builds da runtime leem o mesmo cache (`scope=runtime`), e só o `edge` grava nele. Os builds do
   `edge`, do `compose-smoke` e do `security-scan` usam o mesmo target, o `runtime`.
-- **Base do branch no `security-scan`.** O `build-contexts` da action substitui o `--build-context` de hoje.
+- **Base do branch no `security-scan`.** Com a base mudada, o build continua o `docker build` com `--build-context`, porque o builder do Buildx não enxerga a imagem local (sem cache nesse caso raro).
 - **Prova.** `actionlint`, se houver, ou revisão. A prova real é o CI do próprio PR, que mexe em `.github/` e dispara
   `tests`, `security` e `compose-smoke` (o caminho `.github/workflows/compose-smoke.yml`). Depois do merge, o run do `edge`
   confirma a gravação do cache.

@@ -53,6 +53,7 @@ jobs:
           build-args: VERSION=sha-${{ env.SHA }}
           tags: ${{ env.IMAGE }}:sha-${{ env.SHA }}
           load: true
+          provenance: false
           push: false
           cache-from: type=gha,scope=runtime
           cache-to: type=gha,scope=runtime,mode=max

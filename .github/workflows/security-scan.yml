@@ -66,6 +66,7 @@ jobs:
           target: runtime
           tags: fluxie-scan:ci
           load: true
+          provenance: false
           cache-from: type=gha,scope=runtime
 
       # Falha só com vulnerabilidade CRÍTICA ou ALTA que já tenha correção: o que não tem correção publicada

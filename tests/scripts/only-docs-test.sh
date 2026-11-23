@@ -15,4 +15,7 @@ check "entrada vazia" 1 "$(run '')"
 check "nome com espaço" 0 "$(run 'docs/com espaço.md\n')"
 check "nome acentuado" 0 "$(run 'docs/ação.md\n')"
 check "renomeação de código para docs (--no-renames)" 1 "$(run 'app/X.php\ndocs/X.md\n')"
+check "NOTICE.md em public/vendor" 1 "$(run 'public/vendor/emoji/NOTICE.md\n')"
+check ".md em .github" 1 "$(run '.github/x.md\n')"
+check "última linha sem \n final" 1 "$(run 'docs/a.md\napp/X.php')"
 exit $fail

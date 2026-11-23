@@ -38,9 +38,8 @@
 1. **PR que mexe em docs e código ao mesmo tempo:** a suíte roda inteira. O teste do script cobre a mistura.
 2. **Nome de arquivo com espaço, ou diff vazio** (merge commit sem mudança, rebase vazio): diff vazio não é "só docs", e a
    suíte roda. O teste cobre a entrada vazia.
-3. **`*.md` fora de `docs/`** (README, CLAUDE.md): conta como docs, pela spec. **`.md` dentro de `resources/` ou `tests/`**
-   (template de e-mail em Markdown) também conta, e não deveria. O script só aceita `.md` que não esteja em `resources/`,
-   `app/`, `tests/`, `database/`, `routes/` ou `config/`, e o teste cobre `resources/views/mail/x.md`.
+3. **`.md` fora de `docs/`**: só conta como docs o `.md` na raiz (README, CLAUDE.md). Lista de permissão: qualquer outro caminho com `/`
+   (`resources/views/mail/x.md`, `public/vendor/emoji/NOTICE.md`, `.github/x.md`) é código, e o teste cobre esses casos.
 4. **Build do `edge` no `workflow_run`:** `github.sha` não é o commit testado. O build precisa de `context: .`, o checkout do
    `head_sha`. Sem isso, a action constrói pelo contexto git do `github.sha`.
 5. **`security-scan` com a base mudada:** o daemon tem a `fluxie-base:ci` local, que o builder `docker-container` do Buildx não
@@ -53,7 +52,7 @@
 **Files:**
 - Create: `.github/scripts/only-docs.sh`
 - Create: `tests/scripts/only-docs-test.sh`
-- Modify: `.github/actions/already-tested/action.yml` (description, input `event`, lookup)
+- Modify: `.github/actions/already-tested/action.yml` (description, lookup)
 - Modify: `.github/workflows/tests.yml:69-80` e `:151-162` (checkout com `fetch-depth: 2`; passo `tested` sem `if: push`)
 - Modify: `.github/workflows/compose-smoke.yml:39-40` (o passo de teste dos scripts roda os dois testes)
 
@@ -61,8 +60,7 @@
 - Produces: `.github/scripts/only-docs.sh`, executável.
   - Lê caminhos do stdin, um por linha.
   - Sai com 0 só se houver pelo menos um caminho e todos forem docs. Sai com 1 em qualquer outro caso.
-  - Docs é um caminho que começa com `docs/`, ou que termina em `.md` e não começa com `app/`, `config/`, `database/`,
-    `resources/`, `routes/` ou `tests/`.
+  - Docs é um caminho em `docs/` ou um `.md` na raiz. Qualquer outro caminho com `/` não é docs (lista de permissão, falha fechada).
 - Produces: a action `already-tested` grava `tested=true` em dois casos:
   - push, com a árvore já testada num PR (como hoje);
   - pull_request, quando `git diff --name-only HEAD^1 HEAD | .github/scripts/only-docs.sh` sai com 0.

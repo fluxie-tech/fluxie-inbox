@@ -45,6 +45,7 @@ jobs:
           target: runtime
           tags: fluxie-smoke:ci
           load: true
+          provenance: false
           cache-from: type=gha,scope=runtime
 
       - name: Compose smoke test
@@ -70,6 +71,7 @@ jobs:
           target: runtime
           tags: fluxie-smoke:ci
           load: true
+          provenance: false
           cache-from: type=gha,scope=runtime
 
       - name: Upgrade smoke test
