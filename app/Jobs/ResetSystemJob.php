@@ -39,6 +39,13 @@ class ResetSystemJob implements ShouldQueue
     /** Job morto por tempo ou por erro: o andamento mostra o comando de continuar em vez de ficar "em andamento". */
     public function failed(?Throwable $e): void
     {
-        app(RestoreProgress::class)->fail('O zerar foi interrompido. Para continuar: php artisan app:reset-system --continue');
+        $progress = app(RestoreProgress::class);
+
+        // Uma falha de passo já gravou a mensagem específica; só a morte por tempo (ainda `running`) precisa da genérica.
+        if ($progress->get()['status'] === 'failed') {
+            return;
+        }
+
+        $progress->fail('O zerar foi interrompido. Para continuar: php artisan app:reset-system --continue');
     }
 }

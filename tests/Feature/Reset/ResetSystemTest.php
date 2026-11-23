@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Sleep;
 use Mockery\MockInterface;
+use RuntimeException;
 use Tests\TestCase;
 
 class ResetSystemTest extends TestCase
@@ -70,13 +71,13 @@ class ResetSystemTest extends TestCase
             $disk->put('pasta/sub/a.txt', 'x');
             $disk->put('restauracao/b.txt', 'x');
         }
-        $this->maintenance->shouldReceive('enter')->once();
-        $this->maintenance->shouldReceive('clearQueues')->once();
-        $this->maintenance->shouldReceive('fresh')->once();
-        $this->maintenance->shouldReceive('restartWorkers')->once();
-        $this->maintenance->shouldReceive('leave')->once();
-        $this->admin->shouldReceive('drop')->once()->with('fluxie_antes_202611121500');
-        $this->admin->shouldReceive('drop')->once()->with('fluxie_restaurando_202611121500');
+        $this->maintenance->shouldReceive('enter')->once()->ordered();
+        $this->maintenance->shouldReceive('clearQueues')->once()->ordered();
+        $this->admin->shouldReceive('drop')->once()->with('fluxie_antes_202611121500')->ordered();
+        $this->admin->shouldReceive('drop')->once()->with('fluxie_restaurando_202611121500')->ordered();
+        $this->maintenance->shouldReceive('fresh')->once()->ordered();
+        $this->maintenance->shouldReceive('restartWorkers')->once()->ordered();
+        $this->maintenance->shouldReceive('leave')->once()->ordered();
         $this->begun();
 
         $this->service()->run();
@@ -151,14 +152,71 @@ class ResetSystemTest extends TestCase
         $lock = Cache::lock(ResetSystem::LOCK, 60);
         $lock->get();
         $this->maintenance->shouldNotReceive('enter');
-
-        $this->expectException(RestoreRejected::class);
+        $this->begun();
 
         try {
             $this->service()->run();
+            $this->fail('O lock ocupado deveria recusar.');
+        } catch (RestoreRejected) {
         } finally {
             $lock->release();
         }
+
+        $state = app(RestoreProgress::class)->get();
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame('Já há uma restauração ou zerar em andamento.', $state['message']);
+    }
+
+    public function test_falha_depois_do_cache_ainda_deixa_continuar(): void
+    {
+        Http::fake(['*' => Http::response([], 200)]);
+        Cache::forever(ResetSystem::STARTED, true);
+        $this->maintenance->shouldReceive('enter', 'clearQueues', 'fresh', 'restartWorkers');
+        $this->maintenance->shouldReceive('leave')->andThrow(new RuntimeException('redis'));
+        $this->admin->shouldReceive('drop');
+        $this->begun();
+
+        try {
+            $this->service()->run();
+            $this->fail('A falha deveria subir.');
+        } catch (RuntimeException) {
+        }
+
+        $this->assertFalse(Cache::has(ResetSystem::STARTED), 'o flush já levou o STARTED');
+        $this->assertTrue($this->service()->canContinue());
+        $this->assertStringContainsString('app:reset-system --continue', app(RestoreProgress::class)->get()['message']);
+    }
+
+    public function test_logout_com_erro_que_nao_e_404_segue_para_apagar_a_sessao(): void
+    {
+        Http::fake(['*/logout' => Http::response([], 422), '*' => Http::response([], 200)]);
+        Cache::forever(ResetSystem::SESSIONS, ['main']);
+        $this->maintenance->shouldReceive('enter', 'clearQueues', 'fresh', 'restartWorkers', 'leave');
+        $this->admin->shouldReceive('drop');
+        $this->begun();
+
+        $this->service()->run();
+
+        Http::assertSent(fn ($r) => $r->method() === 'DELETE' && $r->url() === 'http://waha.test:3000/api/sessions/main');
+        $this->assertSame('done', app(RestoreProgress::class)->get()['status']);
+    }
+
+    public function test_o_log_final_traz_as_contagens(): void
+    {
+        Http::fake(['*' => Http::response([], 200)]);
+        Cache::forever(ResetSystem::SESSIONS, ['main', 'vendas']);
+        Message::mediaDisk()->put('a.txt', 'x');
+        Message::mediaDisk()->put('p/b.txt', 'x');
+        foreach (['a', 'b', 'p/c', 'p/d', 'q/e'] as $name) {
+            Storage::disk('backups')->put($name.'.txt', 'x');
+        }
+        $this->maintenance->shouldReceive('enter', 'clearQueues', 'fresh', 'restartWorkers', 'leave');
+        $this->admin->shouldReceive('drop');
+        $this->begun();
+
+        $this->service()->run();
+
+        Log::shouldHaveReceived('warning')->withArgs(fn (string $m) => str_contains($m, '2 canais') && str_contains($m, '2 mídias') && str_contains($m, '5 backups'))->once();
     }
 
     public function test_problem_variavel_desligada(): void
@@ -177,7 +235,7 @@ class ResetSystemTest extends TestCase
 
     public function test_problem_continuando_ignora_so_o_ja_em_manutencao(): void
     {
-        $this->maintenance->shouldReceive('problem')->andReturn('O sistema já está em manutenção.');
+        $this->maintenance->shouldReceive('problem')->andReturn(Maintenance::ALREADY_DOWN);
 
         $this->assertNotNull($this->service()->problem());
         $this->assertNull($this->service()->problem(continuing: true));

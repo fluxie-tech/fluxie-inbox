@@ -51,7 +51,7 @@ class ResetSystem
     public function problem(bool $continuing = false): ?string
     {
         $maintenance = $this->maintenance->problem();
-        $ownMaintenance = $continuing && $maintenance === 'O sistema já está em manutenção.';
+        $ownMaintenance = $continuing && $maintenance === Maintenance::ALREADY_DOWN;
 
         return match (true) {
             ! config('fluxie.allow_reset') => 'O zerar está desligado nesta instalação.',
@@ -76,7 +76,10 @@ class ResetSystem
 
     public function canContinue(): bool
     {
-        return Cache::has(self::STARTED);
+        $state = $this->progress->get();
+
+        // Depois do `reset-cache` o STARTED já foi embora; uma falha no `reset-up` ainda precisa poder continuar.
+        return Cache::has(self::STARTED) || ($state['kind'] === 'reset' && $state['status'] === 'failed');
     }
 
     /** @throws RestoreRejected|Throwable */
@@ -85,8 +88,13 @@ class ResetSystem
         $lock = Cache::lock(self::LOCK, 1800);
 
         if (! $lock->get()) {
-            throw new RestoreRejected('Já há uma restauração em andamento.');
+            $this->progress->fail('Já há uma restauração ou zerar em andamento.');
+
+            throw new RestoreRejected('Já há uma restauração ou zerar em andamento.');
         }
+
+        $counts = ['mídias' => 0, 'backups' => 0];
+        $sessions = $this->storedSessions();
 
         try {
             $this->step('reset-down', function (): void {
@@ -94,13 +102,17 @@ class ResetSystem
                     $this->maintenance->enter();
                 }
             });
-            $this->step('reset-waha', $this->disconnectWaha(...));
+            $this->step('reset-waha', fn () => $this->disconnectWaha($sessions));
             $this->step('reset-queues', function (): void {
                 $this->maintenance->clearQueues();
                 Sleep::for(30)->seconds();
             });
-            $this->step('reset-media', fn () => $this->empty(Message::mediaDisk()));
-            $this->step('reset-backups', fn () => $this->empty(Storage::disk(config()->string('backup.disk'))));
+            $this->step('reset-media', function () use (&$counts): void {
+                $counts['mídias'] = $this->empty(Message::mediaDisk());
+            });
+            $this->step('reset-backups', function () use (&$counts): void {
+                $counts['backups'] = $this->empty(Storage::disk(config()->string('backup.disk')));
+            });
             $this->step('reset-databases', function (): void {
                 foreach ([...$this->admin->stored(), ...$this->admin->staging()] as $database) {
                     $this->admin->drop($database->name);
@@ -128,7 +140,7 @@ class ResetSystem
 
         $message = 'Sistema zerado. Abra /instalar e use o código da aba Environment do Coolify.';
         $this->progress->finish($message);
-        Log::warning($message);
+        Log::warning($message.' '.count($sessions).' canais, '.$counts['mídias'].' mídias e '.$counts['backups'].' backups apagados.');
     }
 
     private function step(string $key, callable $work): void
@@ -159,13 +171,27 @@ class ResetSystem
         return null;
     }
 
-    private function disconnectWaha(): void
+    /** @return list<string> */
+    private function storedSessions(): array
     {
         $sessions = Cache::get(self::SESSIONS, []);
 
-        foreach (is_array($sessions) ? array_filter($sessions, is_string(...)) : [] as $name) {
+        return is_array($sessions) ? array_values(array_filter($sessions, is_string(...))) : [];
+    }
+
+    /** @param  list<string>  $sessions */
+    private function disconnectWaha(array $sessions): void
+    {
+        foreach ($sessions as $name) {
             $client = $this->waha($name);
-            $client->logout();
+
+            try {
+                $client->logout();
+            } catch (WahaRequestException $e) {
+                // Sessão parada ou desconectada pode recusar o logout; repetir o mesmo erro travaria o `--continue`.
+                report($e);
+            }
+
             $client->deleteSession();
         }
     }
@@ -177,12 +203,16 @@ class ResetSystem
     }
 
     /** Apaga tudo do disco, pelos diretórios de topo e pelos arquivos da raiz (no S3 o Flysystem apaga em lotes). */
-    private function empty(Filesystem $disk): void
+    private function empty(Filesystem $disk): int
     {
+        $count = count($disk->allFiles());
+
         foreach ($disk->directories('') as $directory) {
             $disk->deleteDirectory($directory);
         }
 
         $disk->delete($disk->files(''));
+
+        return $count;
     }
 }

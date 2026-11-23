@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\DB;
  */
 class Maintenance
 {
+    public const ALREADY_DOWN = 'O sistema já está em manutenção.';
+
     /** Conexão → filas que o `docker/worker.sh` consome. */
     public const QUEUES = [
         'redis' => ['outbound', 'inbound', 'realtime', 'default', 'google', 'media'],
@@ -29,7 +31,7 @@ class Maintenance
             $this->usesDatabase(config('app.maintenance.store')) => 'O estado da manutenção está guardado no banco (APP_MAINTENANCE_STORE): use APP_MAINTENANCE_STORE=redis, senão ele some com a troca.',
             config('session.driver') === 'database' => 'As sessões estão no banco (SESSION_DRIVER=database): use SESSION_DRIVER=redis para a página de andamento abrir durante a troca.',
             $this->usesDatabase(config('cache.default')) => 'O cache está no banco (CACHE_STORE=database): use CACHE_STORE=redis; o andamento e o lock da restauração ficam no cache.',
-            app()->isDownForMaintenance() => 'O sistema já está em manutenção.',
+            app()->isDownForMaintenance() => self::ALREADY_DOWN,
             default => null,
         };
     }
