@@ -30,34 +30,44 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 2
 
       # No PR que muda docker/base a base é a do branch: construída aqui (~80 s) e no lugar da imagem publicada do FROM, que
       # só muda depois do merge. No resto, inclusive agendado e manual, a base é a publicada, a que o deploy usa: uma base
-      # defasada reprova aqui, e o remédio é rodar o base-image. A comparação é de árvores, basta o commit da base.
-      # A referência é lida do docker/Dockerfile para não ficar fixa numa versão do PHP.
+      # defasada reprova aqui, e o remédio é rodar o base-image. O merge commit contra o primeiro pai dá só a mudança do PR
+      # (o base.sha podia estar defasado). A referência é lida do docker/Dockerfile para não ficar fixa numa versão do PHP.
       - name: Detect base image changes
         id: base
         if: github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          git fetch --no-tags --depth=1 origin "$BASE_SHA"
-          if git diff --quiet "$BASE_SHA" HEAD -- docker/base; then echo "changed=false"; else echo "changed=true"; fi >> "$GITHUB_OUTPUT"
+          if git diff --quiet HEAD^1 HEAD -- docker/base; then echo "changed=false"; else echo "changed=true"; fi >> "$GITHUB_OUTPUT"
 
       - name: Build the base image from this branch
         if: steps.base.outputs.changed == 'true'
         run: docker build -t fluxie-base:ci docker/base
 
-      - name: Build the runtime image
-        env:
-          BASE_CHANGED: ${{ steps.base.outputs.changed }}
+      - name: Build the runtime image with the branch base
+        if: steps.base.outputs.changed == 'true'
         run: |
-          args=()
-          if [ "$BASE_CHANGED" = "true" ]; then
-            base_ref="$(sed -nE 's#^FROM ([^ ]+) AS base$#\1#p' docker/Dockerfile)"
-            args+=(--build-context "${base_ref}=docker-image://fluxie-base:ci")
-          fi
-          docker build --target runtime -f docker/Dockerfile "${args[@]}" -t fluxie-scan:ci .
+          base_ref="$(sed -nE 's#^FROM ([^ ]+) AS base$#\1#p' docker/Dockerfile)"
+          docker build --target runtime -f docker/Dockerfile --build-context "${base_ref}=docker-image://fluxie-base:ci" -t fluxie-scan:ci .
+
+      # O Buildx não enxerga a base local, por isso o caminho da base mudada não usa cache.
+      - name: Set up Buildx
+        if: steps.base.outputs.changed != 'true'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build the runtime image
+        if: steps.base.outputs.changed != 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: runtime
+          tags: fluxie-scan:ci
+          load: true
+          provenance: false
+          cache-from: type=gha,scope=runtime
 
       # Falha só com vulnerabilidade CRÍTICA ou ALTA que já tenha correção: o que não tem correção publicada
       # não é acionável e deixaria o job vermelho para sempre.

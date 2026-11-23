@@ -1,0 +1,4 @@
+# Rótulo de runner do GitHub mais novo que a lista embutida no actionlint 1.7.12.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
