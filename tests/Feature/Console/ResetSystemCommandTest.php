@@ -6,6 +6,7 @@ use App\Services\Backup\Restore\RestoreRejected;
 use App\Services\Reset\ResetSystem;
 use Illuminate\Support\Facades\Cache;
 use Mockery\MockInterface;
+use RuntimeException;
 use Tests\TestCase;
 
 class ResetSystemCommandTest extends TestCase
@@ -57,7 +58,32 @@ class ResetSystemCommandTest extends TestCase
         $this->reset->shouldReceive('problem')->with(true)->andReturn(null);
         $this->reset->shouldReceive('run')->once();
 
-        $this->artisan('app:reset-system --continue')->assertExitCode(0);
+        $this->artisan('app:reset-system --continue')
+            ->expectsOutputToContain('Sistema zerado. Abra /instalar e use o código da aba Environment do Coolify.')
+            ->assertExitCode(0);
+    }
+
+    public function test_problema_recusa_sem_rodar(): void
+    {
+        $this->reset->shouldReceive('canContinue')->andReturn(true);
+        $this->reset->shouldReceive('problem')->with(true)->andReturn('O WAHA não respondeu. Confira se ele está no ar antes de zerar.');
+        $this->reset->shouldNotReceive('run');
+
+        $this->artisan('app:reset-system --continue')
+            ->expectsOutputToContain('O WAHA não respondeu. Confira se ele está no ar antes de zerar.')
+            ->assertExitCode(1);
+    }
+
+    public function test_erro_inesperado_nao_vaza_a_mensagem(): void
+    {
+        $this->reset->shouldReceive('canContinue')->andReturn(true);
+        $this->reset->shouldReceive('problem')->with(true)->andReturn(null);
+        $this->reset->shouldReceive('run')->once()->andThrow(new RuntimeException('segredo'));
+
+        $this->artisan('app:reset-system --continue')
+            ->expectsOutputToContain('Erro inesperado ao continuar o zerar. Veja o log do app.')
+            ->doesntExpectOutputToContain('segredo')
+            ->assertExitCode(1);
     }
 
     public function test_falha_no_run_sai_com_1_e_mostra_a_mensagem(): void
