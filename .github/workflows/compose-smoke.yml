@@ -36,8 +36,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Coolify scripts test
-        run: bash tests/scripts/coolify-test.sh
+      - name: Scripts tests
+        run: |
+          bash tests/scripts/coolify-test.sh
+          bash tests/scripts/only-docs-test.sh
 
       # A base vem do GHCR (pública); o runtime é construído aqui.
       - name: Build the runtime image
