@@ -119,7 +119,7 @@ Título na página de andamento: "Zerando o sistema". Os rótulos entram em `Res
 | `reset-backups` | Apagando os backups | apaga todos os objetos do disco de backup, `restauracao/` incluído |
 | `reset-databases` | Apagando bancos guardados | `AdminDatabase::drop()` em cada `stored()` e `staging()` |
 | `reset-schema` | Recriando o banco | `migrate:fresh --force`, sem seed |
-| `reset-cache` | Limpando o cache | apaga por varredura todas as chaves do prefixo do app no Redis, menos as que o zerar precisa (abaixo) |
+| `reset-cache` | Limpando o cache | guarda o andamento, `Cache::flush()` e regrava o andamento (abaixo) |
 | `reset-up` | Voltando ao ar | `queue:restart` e `Maintenance::leave()` |
 
 - **WAHA só nas sessões dos canais do banco**, nunca "todas as sessões do WAHA" (antimeta do WAHA compartilhado). *(Decisão
@@ -141,11 +141,11 @@ Título na página de andamento: "Zerando o sistema". Os rótulos entram em `Res
   depois disso; ele falha ao gravar no banco novo (canal inexistente) e a mídia que sobrar é rara. *(Decisão minha.)*
 - **Cache**: um `Cache::flush()` apagaria o estado da manutenção e o próprio andamento, que vivem no mesmo Redis. Uma lista fixa
   de chaves não cobre as chaves por ID (`contact-name:{id}`, `presence-seen:{ticket}` etc.), que colidiriam com os IDs
-  reiniciados pelo `migrate:fresh`. Por isso, o passo varre (SCAN, nunca KEYS) as chaves com o prefixo do cache do app e apaga
-  todas, menos o andamento (`restore:state`), o estado da manutenção e a trava do zerar. Os limitadores podem ir junto.
-  *(Decisão minha.)*
-- **Tempo**: o job roda numa fila que o worker escuta com tempo suficiente (sugestão: `history`, como a restauração), com
-  `timeout` de 1 hora e `failOnTimeout`. O método `failed()` do job marca o andamento como falho, então um job morto por
+  reiniciados pelo `migrate:fresh`. O cache do app fica num banco próprio do Redis (`REDIS_CACHE_DB`, separado de filas e
+  sessões), então o passo guarda o andamento, roda `Cache::flush()` e regrava o andamento. O estado da manutenção some junto, o
+  que equivale a sair dela; por isso esse passo é o penúltimo, logo antes do `reset-up`. *(Decisão minha.)*
+- **Tempo**: o job roda na fila `history`, como a restauração (o worker dela mata o job em 900 s), com `timeout` de 840 s e
+  `failOnTimeout`. O método `failed()` do job marca o andamento como falho, então um job morto por
   tempo mostra o comando de continuar em vez de sumir. As mídias e os backups são apagados em lotes para não estourar
   memória. *(Decisão minha.)*
 - **Sessões de login**: ficam no Redis e apontam para usuários que deixam de existir; o próximo request as trata como
