@@ -82,12 +82,14 @@ class Maintenance
         }
     }
 
-    /** Esvazia as filas: um trabalho pendente apontaria para dados que acabaram de sumir. */
+    /** Esvazia as filas: um trabalho pendente apontaria para dados que acabaram de sumir. @throws RestoreRejected */
     public function clearQueues(): void
     {
         foreach (self::QUEUES as $connection => $queues) {
             foreach ($queues as $queue) {
-                Artisan::call('queue:clear', ['connection' => $connection, '--queue' => $queue, '--force' => true]);
+                if (Artisan::call('queue:clear', ['connection' => $connection, '--queue' => $queue, '--force' => true]) !== 0) {
+                    throw new RestoreRejected('Não foi possível esvaziar as filas.');
+                }
             }
         }
     }

@@ -101,4 +101,16 @@ class MaintenanceTest extends TestCase
 
         (new Maintenance)->clearQueues();
     }
+
+    public function test_clear_queues_que_falha_lanca_restore_rejected(): void
+    {
+        Artisan::shouldReceive('call')->once()
+            ->with('queue:clear', ['connection' => 'redis', '--queue' => 'outbound', '--force' => true])
+            ->andReturn(1);
+
+        $this->expectException(RestoreRejected::class);
+        $this->expectExceptionMessage('Não foi possível esvaziar as filas.');
+
+        (new Maintenance)->clearQueues();
+    }
 }
