@@ -21,6 +21,7 @@ jobs:
   # qualquer erro deixa tested=false e tudo roda. O audit roda sempre: aviso novo depende do dia, não da árvore.
   tests:
     runs-on: ubuntu-26.04
+    timeout-minutes: 20
     permissions:
       actions: read
       contents: read
@@ -221,6 +222,7 @@ jobs:
   # Separado dos testes: um aviso de segurança novo não deve reprovar um PR que não tem relação com ele.
   audit:
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
