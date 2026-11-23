@@ -4,7 +4,12 @@ namespace Tests\Feature\Backup\Restore;
 
 use App\Services\Backup\Restore\Maintenance;
 use App\Services\Backup\Restore\RestoreRejected;
+use Illuminate\Database\Console\Migrations\FreshCommand;
+use Illuminate\Database\Console\WipeCommand;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use ReflectionProperty;
+use RuntimeException;
 use Tests\TestCase;
 
 class MaintenanceTest extends TestCase
@@ -20,6 +25,53 @@ class MaintenanceTest extends TestCase
             'session.driver' => 'array',
             'cache.default' => 'array',
         ]);
+    }
+
+    protected function tearDown(): void
+    {
+        // A trava é estática: não pode vazar para os outros testes do processo.
+        DB::prohibitDestructiveCommands(false);
+
+        parent::tearDown();
+    }
+
+    private function prohibited(string $command): bool
+    {
+        return (bool) (new ReflectionProperty($command, 'prohibitedFromRunning'))->getValue();
+    }
+
+    public function test_fresh_libera_os_comandos_destrutivos_so_durante_a_chamada_em_producao(): void
+    {
+        // Em produção o AppServiceProvider proíbe migrate:fresh e db:wipe; o zerar precisa deles.
+        $this->app['env'] = 'production';
+        DB::prohibitDestructiveCommands(true);
+
+        Artisan::shouldReceive('call')->once()->with('migrate:fresh', ['--force' => true])->andReturnUsing(function (): int {
+            $this->assertFalse($this->prohibited(FreshCommand::class));
+            $this->assertFalse($this->prohibited(WipeCommand::class));
+
+            return 0;
+        });
+
+        (new Maintenance)->fresh();
+
+        $this->assertTrue($this->prohibited(FreshCommand::class));
+        $this->assertTrue($this->prohibited(WipeCommand::class));
+    }
+
+    public function test_fresh_devolve_a_trava_mesmo_quando_falha(): void
+    {
+        $this->app['env'] = 'production';
+        DB::prohibitDestructiveCommands(true);
+        Artisan::shouldReceive('call')->once()->andThrow(new RuntimeException('falhou'));
+
+        try {
+            (new Maintenance)->fresh();
+            $this->fail('A exceção devia subir.');
+        } catch (RuntimeException) {
+            $this->assertTrue($this->prohibited(FreshCommand::class));
+            $this->assertTrue($this->prohibited(WipeCommand::class));
+        }
     }
 
     public function test_ambiente_pronto_nao_tem_problema(): void

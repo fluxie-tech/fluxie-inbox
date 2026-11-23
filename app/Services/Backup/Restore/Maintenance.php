@@ -2,6 +2,8 @@
 
 namespace App\Services\Backup\Restore;
 
+use Illuminate\Database\Console\Migrations\FreshCommand;
+use Illuminate\Database\Console\WipeCommand;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 
@@ -79,7 +81,18 @@ class Maintenance
     /** Recria o esquema vazio (sem seed); o zerar usa para deixar a instalação limpa. @throws RestoreRejected */
     public function fresh(): void
     {
-        if (Artisan::call('migrate:fresh', ['--force' => true]) !== 0) {
+        // Em produção o AppServiceProvider proíbe migrate:fresh e db:wipe (saem com FAILURE sem fazer nada); o zerar é o único que
+        // os libera, só durante a chamada, e devolve a mesma regra do provider em seguida.
+        FreshCommand::prohibit(false);
+        WipeCommand::prohibit(false);
+
+        try {
+            $code = Artisan::call('migrate:fresh', ['--force' => true]);
+        } finally {
+            DB::prohibitDestructiveCommands(app()->isProduction());
+        }
+
+        if ($code !== 0) {
             throw new RestoreRejected('Não foi possível recriar o banco.');
         }
     }
