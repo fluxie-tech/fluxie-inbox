@@ -11,6 +11,12 @@ use Illuminate\Support\Facades\DB;
  */
 class Maintenance
 {
+    /** Conexão → filas que o `docker/worker.sh` consome. */
+    public const QUEUES = [
+        'redis' => ['outbound', 'inbound', 'realtime', 'default', 'google', 'media'],
+        'redis_history' => ['history'],
+    ];
+
     /**
      * O que falta no ambiente para a troca funcionar, ou `null` se está pronto. Só o driver de cache vale para vários containers (o de
      * arquivo pausaria só o container do job), e o estado da manutenção, as sessões e o cache precisam estar fora do banco: o banco
@@ -66,5 +72,23 @@ class Maintenance
     public function restartWorkers(): void
     {
         Artisan::call('queue:restart');
+    }
+
+    /** Recria o esquema vazio (sem seed); o zerar usa para deixar a instalação limpa. @throws RestoreRejected */
+    public function fresh(): void
+    {
+        if (Artisan::call('migrate:fresh', ['--force' => true]) !== 0) {
+            throw new RestoreRejected('Não foi possível recriar o banco.');
+        }
+    }
+
+    /** Esvazia as filas: um trabalho pendente apontaria para dados que acabaram de sumir. */
+    public function clearQueues(): void
+    {
+        foreach (self::QUEUES as $connection => $queues) {
+            foreach ($queues as $queue) {
+                Artisan::call('queue:clear', ['connection' => $connection, '--queue' => $queue, '--force' => true]);
+            }
+        }
     }
 }
