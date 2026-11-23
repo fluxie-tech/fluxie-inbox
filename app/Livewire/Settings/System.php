@@ -9,13 +9,18 @@ use App\Models\SystemUpdate;
 use App\Services\Audit\Auditor;
 use App\Services\Backup\ManualBackupState;
 use App\Services\Backup\Restore\RestoreProgress;
+use App\Services\Reset\ResetSystem;
 use App\Services\Update\InstalledVersion;
 use App\Services\Update\Preflight;
 use App\Services\Update\ReleaseFeed;
 use App\Services\Update\Version;
+use App\Settings\CompanySettings;
 use App\Settings\UpdateSettings;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
@@ -40,6 +45,17 @@ class System extends Component
     public bool $composeEdited = false;
 
     public ?string $problem = null;
+
+    public bool $resetting = false;
+
+    public bool $resetAgree = false;
+
+    public string $resetName = '';
+
+    /** Só existe entre a digitação e a conferência: sai do snapshot a cada tentativa. */
+    public string $resetPassword = '';
+
+    public ?string $resetProblem = null;
 
     public ?string $connectionMessage = null;
 
@@ -157,6 +173,84 @@ class System extends Component
         $this->cancelUpdate();
     }
 
+    /** Abre a confirmação do zerar; o bloqueio faz consultas (WAHA), por isso só aqui e não no render. */
+    public function askReset(): void
+    {
+        $this->authorize('admin');
+        $this->reset('resetAgree', 'resetName', 'resetPassword');
+        $this->resetProblem = app(ResetSystem::class)->problem();
+        $this->resetting = true;
+    }
+
+    public function cancelReset(): void
+    {
+        $this->authorize('admin');
+        $this->reset('resetting', 'resetAgree', 'resetName', 'resetPassword', 'resetProblem');
+    }
+
+    public function resetSystem(): void
+    {
+        $this->authorize('admin');
+        $user = Auth::user() ?? abort(403);
+        $key = 'reset-system:'.$user->id;
+        $password = $this->resetPassword;
+        $this->reset('resetPassword');
+
+        $this->resetProblem = match (true) {
+            ! $this->resetAgree => 'Marque a caixa para confirmar.',
+            mb_strtolower(trim($this->resetName)) !== mb_strtolower($this->resetWord()) => 'Digite o nome da empresa exatamente como está cadastrado.',
+            RateLimiter::tooManyAttempts($key, 5) => 'Muitas tentativas. Espere '.RateLimiter::availableIn($key).' segundos.',
+            default => $this->checkPassword($key, $password, $user->getAuthPassword()),
+        };
+
+        if ($this->resetProblem !== null) {
+            return;
+        }
+
+        // Trinco curto: dois cliques seguidos passam juntos pelo `problem()` antes de o primeiro marcar o andamento.
+        $latch = Cache::lock('reset-system-dispatch', 120);
+
+        if (! $latch->get()) {
+            $this->resetProblem = 'O zerar já foi pedido.';
+
+            return;
+        }
+
+        try {
+            $reset = app(ResetSystem::class);
+            $this->resetProblem = $reset->problem();
+
+            if ($this->resetProblem !== null) {
+                return;
+            }
+
+            $reset->start($user->name.' <'.$user->email.'>');
+        } finally {
+            $latch->release();
+        }
+
+        $this->redirectRoute('restauracao');
+    }
+
+    private function checkPassword(string $key, string $password, string $hash): ?string
+    {
+        if (Hash::check($password, $hash)) {
+            RateLimiter::clear($key);
+
+            return null;
+        }
+
+        RateLimiter::hit($key, 60);
+
+        return 'Senha incorreta.';
+    }
+
+    /** A palavra a digitar: o nome da empresa sem espaços nas pontas, ou ZERAR se ela não tiver nome. */
+    private function resetWord(): string
+    {
+        return trim(CompanySettings::name()) ?: 'ZERAR';
+    }
+
     /** Por que esta instalação não pode atualizar agora; a tela esconde o botão, mas a ação chamada direto também recusa. */
     private function blocker(): ?string
     {
@@ -213,6 +307,8 @@ class System extends Component
             'tokenSaved' => UpdateSettings::token() !== null,
             'tokenSavedAt' => $saved?->timezone($timezone)->format('d/m'),
             'confirmWord' => self::CONFIRM_WORD,
+            'allowReset' => config('fluxie.allow_reset') === true,
+            'resetWord' => $this->resetWord(),
             'last' => $last,
             'open' => $open !== null,
             'stale' => $open !== null && $open->started_at !== null && $open->started_at->lt(now()->subMinutes(self::STALE_MINUTES)),
