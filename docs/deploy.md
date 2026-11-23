@@ -167,7 +167,7 @@ para o compose e a imagem candidatos. Para ela seguir verde:
 
 ### Zerar sistema (só staging ou instalação de teste)
 
-Em **Configuração → Sistema**, a seção **Zerar sistema** volta a instalação ao zero: apaga o banco, os bancos guardados pelas
+Em **Configurações → Sistema**, a seção **Zerar sistema** volta a instalação ao zero: apaga o banco, os bancos guardados pelas
 restaurações, as mídias, **todos** os backups, as filas, o cache e as sessões do WhatsApp dos canais (cada canal sai com
 logout). Não tem volta. Antes, baixe um backup para fora do servidor, porque ele também é apagado.
 
