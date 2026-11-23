@@ -46,7 +46,8 @@ termina pelo terminal do Coolify.
 - Modify: `app/Services/Backup/Restore/RestoreProgress.php`
 - Modify: `resources/views/restore/progress.blade.php`
 - Modify: `resources/js/restore-progress.js`
-- Test: `tests/Feature/Backup/Restore/RestoreProgressTest.php`, teste da página (o que já cobre `/restauracao`, ou
+- Modify: `app/Livewire/Settings/Backups.php` (`runNow()` e `blocker()`: mensagem pelo `kind`)
+- Test: `tests/Feature/Livewire/BackupsPageTest.php`, `tests/Feature/Backup/Restore/RestoreProgressTest.php`, teste da página (o que já cobre `/restauracao`, ou
   `tests/Feature/Backup/Restore/RestorePageTest.php` novo)
 
 **Interfaces:**
@@ -69,6 +70,10 @@ termina pelo terminal do Coolify.
   - Página: com estado `kind=reset` e `status=failed`, o HTML traz `php artisan app:reset-system --continue` e o link de volta
     aponta para `route('instalar')`; com `kind=reset` e `done`, a meta `restore-done-url` é `route('instalar')`; com
     `kind=restore`, segue `configuracoes.backups` e o texto atual.
+  - Backups (`tests/Feature/Livewire/BackupsPageTest.php`): `test_backup_manual_recusado_durante_o_zerar` — com
+    `begin('Zerando o sistema', [...], 'reset')`, `runNow()` não enfileira e `problem` é "Há um zerar do sistema em andamento;
+    espere ele terminar para fazer um backup."; o `blocker()` da restauração devolve "Há um zerar do sistema em andamento."
+    (com `kind=restore`, as mensagens atuais seguem iguais).
 - [ ] **Step 2:** rodar `php artisan test --filter=RestoreProgress` e o teste da página → FAIL.
 - [ ] **Step 3:** implementar. Na view, o `<title>`, o título `idle`, o link de volta e a meta de fim escolhem pelo `kind`; com
   `kind=reset` e `failed`, um parágrafo extra: "Para continuar, rode no terminal do app no Coolify:
