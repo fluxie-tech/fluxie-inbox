@@ -9,6 +9,7 @@ if (root) {
     const title = root.querySelector('[data-title]');
     const message = root.querySelector('[data-message]');
     const back = root.querySelector('[data-back]');
+    const resetHint = root.querySelector('[data-reset-hint]');
 
     const markers = { done: 'feito', failed: 'falhou', running: 'em andamento…', pending: 'aguardando' };
     const tones = { done: 'text-ok', failed: 'text-danger', running: 'text-accent-content', pending: 'text-ink-3' };
@@ -38,6 +39,7 @@ if (root) {
             }),
         );
         back.classList.toggle('hidden', state.status === 'running');
+        resetHint.classList.toggle('hidden', !(state.kind === 'reset' && state.status === 'failed'));
     };
 
     const poll = async () => {

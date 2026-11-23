@@ -70,8 +70,12 @@ class Backups extends Component
     {
         $this->authorize('admin');
 
-        if (app(RestoreProgress::class)->isRunning()) {
-            $this->problem = 'Há uma restauração em andamento; espere ela terminar para fazer um backup.';
+        $progress = app(RestoreProgress::class);
+
+        if ($progress->isRunning()) {
+            $this->problem = $progress->get()['kind'] === 'reset'
+                ? 'Há um zerar do sistema em andamento; espere ele terminar para fazer um backup.'
+                : 'Há uma restauração em andamento; espere ela terminar para fazer um backup.';
 
             return;
         }
@@ -303,8 +307,10 @@ class Backups extends Component
             return 'Digite '.config()->string('backup.restore.confirm_word').' para confirmar.';
         }
 
-        if (app(RestoreProgress::class)->isRunning()) {
-            return 'Já há uma restauração em andamento.';
+        $progress = app(RestoreProgress::class);
+
+        if ($progress->isRunning()) {
+            return $progress->get()['kind'] === 'reset' ? 'Há um zerar do sistema em andamento.' : 'Já há uma restauração em andamento.';
         }
 
         if (SystemUpdate::open() !== null) {

@@ -19,6 +19,15 @@ class RestoreProgress
         'migrate' => 'Atualizando o esquema',
         'resume' => 'Voltando ao ar',
         'recover' => 'Recuperando mensagens do WhatsApp',
+        'reset-down' => 'Entrando em manutenção',
+        'reset-waha' => 'Desconectando o WhatsApp',
+        'reset-queues' => 'Esvaziando as filas',
+        'reset-media' => 'Apagando as mídias',
+        'reset-backups' => 'Apagando os backups',
+        'reset-databases' => 'Apagando bancos guardados',
+        'reset-schema' => 'Recriando o banco',
+        'reset-cache' => 'Limpando o cache',
+        'reset-up' => 'Voltando ao ar',
     ];
 
     private const KEY = 'restore:state';
@@ -28,12 +37,15 @@ class RestoreProgress
 
     private const FINISHED_HOURS = 24;
 
-    /** @param  list<string>  $keys passos desta restauração, na ordem (chaves de {@see self::STEPS}) */
-    public function begin(string $title, array $keys): void
+    /**
+     * @param  list<string>  $keys  passos desta restauração, na ordem (chaves de {@see self::STEPS})
+     * @param  'restore'|'reset'  $kind  a restauração do banco ou o zerar do sistema (a página e a tela de Backups escolhem o texto por ele)
+     */
+    public function begin(string $title, array $keys, string $kind = 'restore'): void
     {
         $steps = array_map(fn (string $key): array => ['key' => $key, 'label' => self::STEPS[$key] ?? $key, 'state' => 'pending'], $keys);
 
-        $this->put(['status' => 'running', 'title' => $title, 'steps' => $steps, 'message' => '']);
+        $this->put(['status' => 'running', 'title' => $title, 'steps' => $steps, 'message' => '', 'kind' => $kind]);
     }
 
     public function running(string $key): void
@@ -66,16 +78,26 @@ class RestoreProgress
         $this->put($state, finished: true);
     }
 
+    /**
+     * Regrava um estado lido por {@see self::get()}: o zerar apaga o cache inteiro no meio e devolve o andamento depois.
+     *
+     * @param  array{status: string, title: string, steps: list<array{key: string, label: string, state: string}>, message: string, kind: string}  $state
+     */
+    public function replace(array $state): void
+    {
+        $this->put($state, finished: $state['status'] !== 'running');
+    }
+
     public function isRunning(): bool
     {
         return $this->get()['status'] === 'running';
     }
 
-    /** @return array{status: string, title: string, steps: list<array{key: string, label: string, state: string}>, message: string} */
+    /** @return array{status: string, title: string, steps: list<array{key: string, label: string, state: string}>, message: string, kind: 'restore'|'reset'} */
     public function get(): array
     {
         $state = Cache::get(self::KEY);
-        $idle = ['status' => 'idle', 'title' => '', 'steps' => [], 'message' => ''];
+        $idle = ['status' => 'idle', 'title' => '', 'steps' => [], 'message' => '', 'kind' => 'restore'];
 
         if (! is_array($state) || ! isset($state['status'], $state['title'], $state['steps'], $state['message']) || ! is_array($state['steps'])) {
             return $idle;
@@ -91,7 +113,13 @@ class RestoreProgress
 
         $text = fn (mixed $value): string => is_string($value) ? $value : '';
 
-        return ['status' => $text($state['status']), 'title' => $text($state['title']), 'steps' => $steps, 'message' => $text($state['message'])];
+        return [
+            'status' => $text($state['status']),
+            'title' => $text($state['title']),
+            'steps' => $steps,
+            'message' => $text($state['message']),
+            'kind' => ($state['kind'] ?? null) === 'reset' ? 'reset' : 'restore',
+        ];
     }
 
     private function mark(string $key, string $to): void

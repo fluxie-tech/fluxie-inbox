@@ -17,6 +17,59 @@ class RestoreProgressTest extends TestCase
         $this->assertFalse((new RestoreProgress)->isRunning());
     }
 
+    public function test_begin_guarda_o_kind_e_get_devolve(): void
+    {
+        $progress = new RestoreProgress;
+        $progress->begin('Zerando o sistema', ['reset-down'], 'reset');
+
+        $this->assertSame('reset', $progress->get()['kind']);
+        $this->assertSame('Entrando em manutenção', $progress->get()['steps'][0]['label']);
+
+        $progress->begin('Restaurando o banco', ['inspect']);
+        $this->assertSame('restore', $progress->get()['kind']);
+    }
+
+    public function test_estado_sem_kind_ou_idle_vale_restore(): void
+    {
+        $this->assertSame('restore', (new RestoreProgress)->get()['kind']);
+
+        $legacy = ['status' => 'running', 'title' => 'T', 'steps' => [], 'message' => ''];
+        Cache::put('restore:state', $legacy);
+        $this->assertSame('restore', (new RestoreProgress)->get()['kind']);
+
+        Cache::put('restore:state', [...$legacy, 'kind' => 'bobagem']);
+        $this->assertSame('restore', (new RestoreProgress)->get()['kind']);
+    }
+
+    public function test_replace_regrava_o_estado(): void
+    {
+        $progress = new RestoreProgress;
+        $progress->begin('Zerando o sistema', ['reset-down', 'reset-up'], 'reset');
+        $progress->running('reset-down');
+        $state = $progress->get();
+
+        Cache::flush();
+        $this->assertSame('idle', $progress->get()['status']);
+
+        $progress->replace($state);
+        $this->assertSame($state, $progress->get());
+        $this->assertTrue($progress->isRunning());
+    }
+
+    public function test_replace_de_estado_terminado_usa_o_ttl_de_terminado(): void
+    {
+        $progress = new RestoreProgress;
+        $progress->begin('Zerando o sistema', ['reset-down'], 'reset');
+        $progress->finish('ok');
+        $state = $progress->get();
+        Cache::flush();
+
+        $progress->replace($state);
+
+        $this->travel(2)->hours();
+        $this->assertSame('done', $progress->get()['status']);
+    }
+
     public function test_comeca_ordena_e_termina_os_passos(): void
     {
         $progress = new RestoreProgress;

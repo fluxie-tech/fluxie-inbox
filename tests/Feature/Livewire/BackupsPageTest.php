@@ -184,6 +184,19 @@ class BackupsPageTest extends TestCase
         $this->assertSame(0, AuditLog::query()->count());
     }
 
+    public function test_backup_manual_recusado_durante_o_zerar(): void
+    {
+        Queue::fake();
+        app(RestoreProgress::class)->begin('Zerando o sistema', ['reset-down'], 'reset');
+
+        Livewire::actingAs($this->admin())->test(Backups::class)
+            ->call('runNow')
+            ->assertSet('problem', 'Há um zerar do sistema em andamento; espere ele terminar para fazer um backup.');
+
+        Queue::assertNothingPushed();
+        $this->assertFalse((new ManualBackupState)->isRunning());
+    }
+
     public function test_fazer_agora_grava_a_auditoria_so_quando_enfileira(): void
     {
         Queue::fake();
