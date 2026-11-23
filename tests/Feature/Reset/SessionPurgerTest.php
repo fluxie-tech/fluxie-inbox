@@ -3,6 +3,7 @@
 namespace Tests\Feature\Reset;
 
 use App\Services\Reset\SessionPurger;
+use Illuminate\Redis\Connections\PhpRedisConnection;
 use Illuminate\Redis\Connections\PredisConnection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -16,12 +17,34 @@ class SessionPurgerTest extends TestCase
         config(['database.redis.options.prefix' => 'dbp-']);
         [$a, $b] = [Str::random(40), Str::random(40)];
         $redis = Mockery::mock(PredisConnection::class);
-        $redis->shouldReceive('scan')->once()->with(0, Mockery::any())->andReturn(['17', ['dbp-cp-'.$a, 'dbp-cp-restore-database', 'dbp-queues:history', 'dbp-cp-'.Str::random(39)]]);
+        $redis->shouldReceive('scan')->once()->with(Mockery::on(fn ($cursor) => $cursor === '0'), Mockery::any())->andReturn(['17', ['dbp-cp-'.$a, 'dbp-cp-restore-database', 'dbp-queues:history', 'dbp-cp-'.Str::random(39)]]);
         $redis->shouldReceive('scan')->once()->with('17', Mockery::any())->andReturn([0, ['cp-'.$b, 'dbp-cp-'.Str::random(41)]]);
         $redis->shouldReceive('del')->once()->with('cp-'.$a);
         $redis->shouldReceive('del')->once()->with('cp-'.$b);
 
         $this->assertSame(2, (new SessionPurger)->purgeRedis($redis, 'cp-'));
+    }
+
+    public function test_phpredis_6_1_comeca_o_scan_com_cursor_nulo(): void
+    {
+        $id = Str::random(40);
+        $redis = Mockery::mock(PhpRedisConnection::class);
+        $redis->shouldReceive('scan')->once()->with(Mockery::on(fn ($cursor) => $cursor === null), Mockery::any())->andReturn([0, ['cp-'.$id]]);
+        $redis->shouldReceive('del')->once()->with('cp-'.$id);
+
+        $this->assertSame(1, (new SessionPurger)->purgeRedis($redis, 'cp-', '6.1.0'));
+    }
+
+    public function test_cursor_inicial_depende_do_cliente_e_da_versao_do_phpredis(): void
+    {
+        $purger = new SessionPurger;
+        $phpredis = Mockery::mock(PhpRedisConnection::class);
+
+        $this->assertNull($purger->initialCursor($phpredis, '6.1.0'));
+        $this->assertNull($purger->initialCursor($phpredis, '6.2.1'));
+        $this->assertSame('0', $purger->initialCursor($phpredis, '6.0.2'));
+        $this->assertSame('0', $purger->initialCursor($phpredis, ''));
+        $this->assertSame('0', $purger->initialCursor(Mockery::mock(PredisConnection::class), '6.1.0'));
     }
 
     public function test_scan_vazio_nao_apaga_nada(): void

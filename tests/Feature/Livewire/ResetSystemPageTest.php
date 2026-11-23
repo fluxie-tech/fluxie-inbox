@@ -12,7 +12,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Mockery\MockInterface;
 use Tests\Feature\Update\FakesUpdateWorld;
@@ -182,8 +181,6 @@ class ResetSystemPageTest extends TestCase
     public function test_segundo_clique_depois_de_comecar_nao_despacha_de_novo(): void
     {
         Queue::fake();
-        Storage::fake('local');
-        config(['backup.tmp_path' => sys_get_temp_dir().'/nao-existe-'.uniqid()]);
         config(['app.maintenance.driver' => 'cache', 'app.maintenance.store' => 'array', 'session.driver' => 'array', 'cache.default' => 'array']);
         $page = $this->filled($this->admin());
 

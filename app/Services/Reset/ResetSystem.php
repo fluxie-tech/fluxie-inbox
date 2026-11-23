@@ -123,6 +123,7 @@ class ResetSystem
     {
         $locks = $this->lock();
         $counts = ['mídias' => 0, 'backups' => 0];
+        $flushed = false;
         $sessions = $this->sessionsToDisconnect();
 
         try {
@@ -148,18 +149,20 @@ class ResetSystem
                 }
             });
             $this->step('reset-schema', fn () => $this->maintenance->fresh());
-            $this->step('reset-cache', function (): void {
+            $this->step('reset-cache', function () use (&$flushed): void {
+                // As sessões primeiro: o flush leva o estado da manutenção (o sistema volta ao ar), e uma falha depois dele não se continua.
+                $this->sessionPurger->purge();
                 $state = $this->progress->get();
                 Cache::flush();
+                $flushed = true;
                 $this->progress->replace($state);
-                $this->sessionPurger->purge();
             });
             $this->step('reset-up', function (): void {
                 $this->maintenance->restartWorkers();
                 $this->maintenance->leave();
             });
         } catch (Throwable $e) {
-            $this->progress->fail(($e instanceof RestoreRejected ? $e->getMessage() : 'Erro inesperado ('.class_basename($e).'). Veja o log do app.').' Para continuar: '.self::COMMAND);
+            $this->progress->fail($this->failureMessage($e, $flushed));
             Log::warning('Zerar o sistema falhou: '.$e->getMessage());
             report($e);
 
@@ -196,6 +199,16 @@ class ResetSystem
         }
 
         return [$restore, $backup];
+    }
+
+    /** Depois do flush o sistema já voltou ao ar (o estado da manutenção ia no cache) e o `--continue` recusa: o que resta é reiniciar os workers. */
+    private function failureMessage(Throwable $e, bool $flushed): string
+    {
+        if ($flushed) {
+            return 'O sistema voltou ao ar, mas os workers podem não ter reiniciado: rode `php artisan queue:restart` no terminal do app.';
+        }
+
+        return ($e instanceof RestoreRejected ? $e->getMessage() : 'Erro inesperado ('.class_basename($e).'). Veja o log do app.').' Para continuar: '.self::COMMAND;
     }
 
     /** @throws RestoreRejected */

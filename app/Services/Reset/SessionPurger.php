@@ -26,19 +26,19 @@ class SessionPurger
 
         $redis = $store->connection();
 
-        return $redis instanceof PhpRedisConnection || $redis instanceof PredisConnection ? $this->purgeRedis($redis, $store->getPrefix()) : 0;
+        return $redis instanceof PhpRedisConnection || $redis instanceof PredisConnection ? $this->purgeRedis($redis, $store->getPrefix(), (string) phpversion('redis')) : 0;
     }
 
     /**
      * SCAN (nunca KEYS) e só as chaves `<prefixo do store><ID de 40 caracteres>`: locks e filas dividem o mesmo DB e ficam.
      * O phpredis devolve as chaves com o prefixo do cliente e o `del` o põe de novo, então ele sai antes.
      */
-    public function purgeRedis(PhpRedisConnection|PredisConnection $redis, string $prefix): int
+    public function purgeRedis(PhpRedisConnection|PredisConnection $redis, string $prefix, string $phpredisVersion = ''): int
     {
         $clientPrefix = config()->string('database.redis.options.prefix', '');
         $pattern = '/^'.preg_quote($prefix, '/').'[A-Za-z0-9]{40}$/';
         $count = 0;
-        $cursor = 0;
+        $cursor = $this->initialCursor($redis, $phpredisVersion);
 
         do {
             $page = $redis->scan($cursor, ['match' => '*', 'count' => 1000]);
@@ -58,6 +58,12 @@ class SessionPurger
         } while (is_scalar($cursor) && (string) $cursor !== '0');
 
         return $count;
+    }
+
+    /** No phpredis 6.1 ou mais novo, o cursor 0 já quer dizer "varredura terminada": o primeiro SCAN vai com `null` (regra do `RedisStore` do Laravel). */
+    public function initialCursor(PhpRedisConnection|PredisConnection $redis, string $phpredisVersion): ?string
+    {
+        return $redis instanceof PhpRedisConnection && version_compare($phpredisVersion, '6.1.0', '>=') ? null : '0';
     }
 
     /** A chave sem o prefixo do cliente se for de sessão, ou `null` (lock, fila, outro). */

@@ -49,8 +49,6 @@ class ResetSystemTest extends TestCase
         config(['fluxie.allow_reset' => true, 'services.waha.url' => 'http://waha.test:3000', 'services.waha.key' => 'k']);
         Storage::fake('backups');
         Storage::fake(config()->string('media.disk'));
-        Storage::fake('local');
-        config(['backup.tmp_path' => sys_get_temp_dir().'/nao-existe-'.uniqid()]);
         Sleep::fake();
         Log::spy();
 
@@ -189,10 +187,31 @@ class ResetSystemTest extends TestCase
         $this->assertSame('Já há uma restauração ou zerar em andamento. Espere alguns minutos e rode de novo: php artisan app:reset-system --continue', $state['message']);
     }
 
-    public function test_falha_depois_do_cache_ainda_deixa_continuar(): void
+    public function test_falha_no_reset_up_depois_do_cache_manda_reiniciar_os_workers_e_nao_continuar(): void
     {
         Http::fake(['*' => Http::response([], 200)]);
         Cache::forever(ResetSystem::STARTED, true);
+        $this->maintenance->shouldReceive('enter', 'clearQueues', 'fresh');
+        $this->maintenance->shouldReceive('restartWorkers')->andThrow(new RuntimeException('redis'));
+        $this->admin->shouldReceive('drop');
+        $this->begun();
+
+        try {
+            $this->service()->run();
+            $this->fail('A falha deveria subir.');
+        } catch (RuntimeException) {
+        }
+
+        $message = app(RestoreProgress::class)->get()['message'];
+        $this->assertFalse(Cache::has(ResetSystem::STARTED), 'o flush já levou o STARTED');
+        $this->assertSame('O sistema voltou ao ar, mas os workers podem não ter reiniciado: rode `php artisan queue:restart` no terminal do app.', $message);
+        $this->assertStringNotContainsString('--continue', $message);
+        $this->assertSame('failed', app(RestoreProgress::class)->get()['status']);
+    }
+
+    public function test_falha_no_leave_depois_do_cache_tambem_manda_reiniciar_os_workers(): void
+    {
+        Http::fake(['*' => Http::response([], 200)]);
         $this->maintenance->shouldReceive('enter', 'clearQueues', 'fresh', 'restartWorkers');
         $this->maintenance->shouldReceive('leave')->andThrow(new RuntimeException('redis'));
         $this->admin->shouldReceive('drop');
@@ -204,9 +223,25 @@ class ResetSystemTest extends TestCase
         } catch (RuntimeException) {
         }
 
-        $this->assertFalse(Cache::has(ResetSystem::STARTED), 'o flush já levou o STARTED');
-        $this->down();
-        $this->assertTrue($this->service()->canContinue());
+        $this->assertStringContainsString('queue:restart', app(RestoreProgress::class)->get()['message']);
+    }
+
+    public function test_falha_do_purge_das_sessoes_acontece_antes_do_flush_e_deixa_continuar(): void
+    {
+        Http::fake(['*' => Http::response([], 200)]);
+        Cache::forever(ResetSystem::STARTED, true);
+        $this->maintenance->shouldReceive('enter', 'clearQueues', 'fresh');
+        $this->sessions->shouldReceive('purge')->andThrow(new RuntimeException('redis'));
+        $this->admin->shouldReceive('drop');
+        $this->begun();
+
+        try {
+            $this->service()->run();
+            $this->fail('A falha deveria subir.');
+        } catch (RuntimeException) {
+        }
+
+        $this->assertTrue(Cache::has(ResetSystem::STARTED), 'o cache ainda não foi limpo');
         $this->assertStringContainsString('app:reset-system --continue', app(RestoreProgress::class)->get()['message']);
     }
 
