@@ -7,6 +7,7 @@ use App\Models\Channel;
 use App\Models\WahaEvent;
 use App\Services\Inbox\ApplyAck;
 use App\Services\Inbox\ApplyMessageChange;
+use App\Services\Inbox\CallReplyEcho;
 use App\Services\Inbox\IngestMessage;
 use App\Services\Waha\ChannelPhone;
 use App\Services\Waha\WahaClient;
@@ -55,7 +56,7 @@ class HandleWahaEvent implements ShouldQueue
 
         match ($event->event) {
             'session.status' => $this->applyStatus($event),
-            'message', 'message.any', 'message.waiting' => app(IngestMessage::class)($event),
+            'message', 'message.any', 'message.waiting' => CallReplyEcho::matches($event) ?: app(IngestMessage::class)($event),
             'message.ack' => $this->retryUnlessDone(app(ApplyAck::class)($event), $event, 'Ack descartado: mensagem nunca apareceu'),
             'message.reaction' => $this->retryUnlessDone(app(ApplyMessageChange::class)->reaction($event), $event, 'Reação descartada: mensagem nunca apareceu'),
             'message.edited' => $this->retryUnlessDone(app(ApplyMessageChange::class)->edited($event), $event, 'Edição descartada: mensagem nunca apareceu'),

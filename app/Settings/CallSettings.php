@@ -3,8 +3,6 @@
 namespace App\Settings;
 
 use App\Models\Setting;
-use App\Models\WahaEvent;
-use App\Services\Inbox\IncomingMessage;
 
 /** Recusa de ligações em `settings`: a chave, o texto enviado ao cliente e os textos que já foram usados. */
 final class CallSettings
@@ -47,11 +45,10 @@ final class CallSettings
         return array_values(array_unique([self::message(), ...self::previous()]));
     }
 
-    /** O eco `fromMe` de texto, de origem API, da resposta automática (atual ou antiga) com a recusa ligada. */
-    public static function isReplyEcho(WahaEvent $event, IncomingMessage $incoming): bool
+    /** O texto é o da resposta automática (atual ou antigo) e a recusa está ligada. */
+    public static function isReplyText(string $body): bool
     {
-        return $incoming->fromMe && $incoming->type === 'text' && data_get($event->payload, 'payload.source') === 'api'
-            && self::rejects() && in_array(trim($incoming->body), array_map('trim', self::knownMessages()), true);
+        return self::rejects() && in_array(trim($body), array_map('trim', self::knownMessages()), true);
     }
 
     /** @return list<string> */

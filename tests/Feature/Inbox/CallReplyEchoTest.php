@@ -3,11 +3,14 @@
 namespace Tests\Feature\Inbox;
 
 use App\Enums\MessageOrigin;
+use App\Jobs\HandleWahaEvent;
 use App\Models\Channel;
 use App\Models\Message;
 use App\Models\Ticket;
 use App\Models\WahaEvent;
 use App\Services\Inbox\IngestMessage;
+use App\Services\Inbox\IngestMode;
+use App\Services\Inbox\RecoverMessages;
 use App\Settings\CallSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -29,33 +32,39 @@ class CallReplyEchoTest extends TestCase
         $this->channel = Channel::factory()->connected()->create(['waha_session' => 'main']);
     }
 
-    private function echo(string $body, string $source = 'api', ?string $mode = null): ?Message
+    /** Passa pelas portas reais: o job do webhook, ou a recuperação no modo `recovered`. A mensagem nova, ou `null`. */
+    private function echo(string $body, ?string $source = 'api', ?string $mode = null): ?Message
     {
-        $payload = ['event' => 'message.any', 'session' => 'main', 'payload' => [
+        $data = [
             'id' => 'true_5516997524950@c.us_'.uniqid(),
             'from' => '5516999990001@c.us',
             'to' => self::PEER,
             'fromMe' => true,
-            'source' => $source,
             'body' => $body,
             'timestamp' => 1_793_000_100,
             'hasMedia' => false,
-        ]];
+        ];
 
-        if ($mode !== null) {
-            $payload['mode'] = $mode;
+        if ($source !== null) {
+            $data['source'] = $source;
         }
 
+        if ($mode !== null) {
+            return app(RecoverMessages::class)->ingest($this->channel, $data, IngestMode::RECOVERED);
+        }
+
+        $before = (int) Message::query()->max('id');
         $event = WahaEvent::create([
             'waha_event_id' => 'evt_'.uniqid(),
             'channel_id' => $this->channel->id,
             'event' => 'message.any',
             'session' => 'main',
-            'payload' => $payload,
+            'payload' => ['event' => 'message.any', 'session' => 'main', 'payload' => $data],
             'received_at' => now(),
         ]);
+        (new HandleWahaEvent($event->id))->handle();
 
-        return app(IngestMessage::class)($event);
+        return Message::query()->where('id', '>', $before)->first();
     }
 
     private function openTicket(): Ticket
@@ -120,5 +129,17 @@ class CallReplyEchoTest extends TestCase
     public function test_mesmo_texto_digitado_no_celular_entra_como_hoje(): void
     {
         $this->assertNotNull($this->echo(CallSettings::message(), source: 'app'));
+    }
+
+    public function test_eco_sem_source_entra_como_hoje(): void
+    {
+        $this->assertNotNull($this->echo(CallSettings::message(), source: null));
+    }
+
+    public function test_texto_com_espacos_e_quebra_de_linha_nas_bordas_e_reconhecido(): void
+    {
+        $this->assertNull($this->echo('  '.CallSettings::message().'
+'));
+        $this->assertSame(0, Message::query()->count());
     }
 }
