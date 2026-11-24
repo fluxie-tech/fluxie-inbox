@@ -18,6 +18,7 @@ use App\Models\TicketEvent;
 use App\Models\WahaEvent;
 use App\Services\Alerts\AlertDispatcher;
 use App\Services\Bot\BotEntry;
+use App\Settings\CallSettings;
 use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,8 @@ use Illuminate\Support\Facades\DB;
  * Transforma um evento `message`/`message.any` do WAHA em contato + ticket + mensagem.
  *
  * Idempotente: o mesmo `wa_message_id` no mesmo canal nunca gera segunda linha.
+ *
+ * @SuppressWarnings("PHPMD.ExcessiveClassComplexity")
  */
 class IngestMessage
 {
@@ -53,14 +56,14 @@ class IngestMessage
             return $existing;
         }
 
-        $contact = ($this->resolveContact)($incoming->peer, $incoming->alternateJid, $incoming->pushName);
-        $mode = IngestMode::of($event);
-        $this->queueEnrichment($contact, $channel, $mode);
-
-        // Já há ticket aberto do contato que começou antes desta mensagem: ela pertence a ele, não ao histórico.
-        if ($mode === IngestMode::IMPORTED && $this->hasOpenTicketBefore($channel, $contact, $incoming)) {
-            $mode = IngestMode::RECOVERED;
+        // shortcut: casa pela origem API mais o texto; a mesma frase enviada pelo painel e com eco fora da janela também seria ignorada. Trocar por marca do WAHA se ele passar a identificar a resposta do app calls.
+        if (CallSettings::isReplyEcho($event, $incoming)) {
+            return null;
         }
+
+        $contact = ($this->resolveContact)($incoming->peer, $incoming->alternateJid, $incoming->pushName);
+        $this->queueEnrichment($contact, $channel, IngestMode::of($event));
+        $mode = $this->modeFor($event, $channel, $contact, $incoming);
 
         if ($incoming->fromMe && in_array($incoming->type, ['text', 'media'], true) && ($pending = $this->matchPending($channel, $contact, $incoming)) !== null) {
             return $this->adoptEcho($pending, $incoming);
@@ -91,6 +94,14 @@ class IngestMessage
         if ($mode === IngestMode::LIVE) {
             app(SyncContactPhoto::class)->queueFor($contact, $channel);
         }
+    }
+
+    /** Já há ticket aberto do contato que começou antes desta mensagem: ela pertence a ele, não ao histórico. */
+    private function modeFor(WahaEvent $event, Channel $channel, Contact $contact, IncomingMessage $incoming): IngestMode
+    {
+        $mode = IngestMode::of($event);
+
+        return $mode === IngestMode::IMPORTED && $this->hasOpenTicketBefore($channel, $contact, $incoming) ? IngestMode::RECOVERED : $mode;
     }
 
     private function find(Channel $channel, string $waId): ?Message
