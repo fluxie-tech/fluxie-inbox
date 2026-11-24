@@ -11,7 +11,15 @@ use App\Settings\CallSettings;
 final class CallReplyEcho
 {
     /**
-     * shortcut: ao vivo casa pela origem API mais o texto; na recuperação e na importação casa só pelo texto, porque a listagem REST do WAHA (GOWS) não guarda a origem e devolve o mesmo eco como `app` (uma mensagem digitada no celular com esse texto já entrou ao vivo, e a recuperação pula ids existentes). A guarda roda antes do casamento do eco das mensagens do painel, então vale também dentro da janela do eco; o único efeito visível é um envio do painel que estourou o prazo (FAILED "sem resposta") com exatamente o texto da recusa não voltar a "enviada" pelo eco. Trocar por marca do WAHA se ele passar a identificar a resposta do app calls.
+     * shortcut: ao vivo casa pela origem API mais o texto; na recuperação e na importação casa só pelo texto.
+     * A listagem REST do WAHA (GOWS) não guarda a origem e devolve o mesmo eco como `app`. Uma mensagem digitada
+     * no celular com esse texto já entrou ao vivo, salvo quando o webhook dela se perdeu (queda); a recuperação
+     * pula ids existentes.
+     *
+     * A guarda roda antes do casamento do eco das mensagens do painel, então vale também dentro da janela do eco.
+     * O único efeito visível é um envio do painel que estourou o prazo (FAILED "sem resposta") com exatamente o
+     * texto da recusa não voltar a "enviada" pelo eco. Trocar por marca do WAHA se ele passar a identificar a
+     * resposta do app calls.
      */
     public static function matches(WahaEvent $event): bool
     {
