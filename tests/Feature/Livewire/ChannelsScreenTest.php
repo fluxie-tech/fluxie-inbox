@@ -125,7 +125,7 @@ class ChannelsScreenTest extends TestCase
 
     public function test_conectar_chama_o_waha_e_marca_iniciando(): void
     {
-        Http::fake(['*/api/sessions*' => Http::response(['status' => 'STARTING'], 200)]);
+        Http::fake(['*/api/sessions*' => Http::response(['status' => 'STARTING'], 200), '*/api/apps*' => Http::response([], 200)]);
         $channel = Channel::factory()->create(['waha_session' => 'main']);
 
         Livewire::actingAs($this->admin())->test(ChannelCard::class, ['channel' => $channel])->call('connect');
@@ -135,7 +135,7 @@ class ChannelsScreenTest extends TestCase
 
     public function test_conectar_um_canal_nao_afeta_o_outro(): void
     {
-        Http::fake(['*/api/sessions*' => Http::response(['status' => 'STARTING'], 200)]);
+        Http::fake(['*/api/sessions*' => Http::response(['status' => 'STARTING'], 200), '*/api/apps*' => Http::response([], 200)]);
         $first = Channel::factory()->create(['waha_session' => 'um']);
         $second = Channel::factory()->create(['waha_session' => 'dois']);
 
@@ -143,7 +143,7 @@ class ChannelsScreenTest extends TestCase
 
         $this->assertSame(ChannelStatus::STARTING, $first->fresh()->status);
         $this->assertSame(ChannelStatus::STOPPED, $second->fresh()->status);
-        Http::assertSent(fn ($request) => str_contains($request->url(), '/sessions/um') || $request['name'] === 'um');
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/sessions/um') || ($request['name'] ?? null) === 'um');
         Http::assertNotSent(fn ($request) => str_contains($request->url(), '/sessions/dois') || ($request['name'] ?? null) === 'dois');
     }
 
@@ -237,7 +237,7 @@ class ChannelsScreenTest extends TestCase
 
     public function test_importacao_de_historico_vem_desligada_e_e_gravada_na_conexao(): void
     {
-        Http::fake(['*/api/sessions*' => Http::response(['status' => 'STARTING'], 200)]);
+        Http::fake(['*/api/sessions*' => Http::response(['status' => 'STARTING'], 200), '*/api/apps*' => Http::response([], 200)]);
         $channel = Channel::factory()->create(['waha_session' => 'main']);
 
         Livewire::actingAs($this->admin())->test(ChannelCard::class, ['channel' => $channel])
@@ -260,7 +260,7 @@ class ChannelsScreenTest extends TestCase
 
     public function test_importacao_de_historico_aceita_no_maximo_30_dias(): void
     {
-        Http::fake(['*/api/sessions*' => Http::response(['status' => 'STARTING'], 200)]);
+        Http::fake(['*/api/sessions*' => Http::response(['status' => 'STARTING'], 200), '*/api/apps*' => Http::response([], 200)]);
         $channel = Channel::factory()->create(['waha_session' => 'main']);
 
         $card = Livewire::actingAs($this->admin())->test(ChannelCard::class, ['channel' => $channel])

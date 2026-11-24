@@ -11,6 +11,7 @@ use App\Models\Channel;
 use App\Models\Ticket;
 use App\Services\Audit\Auditor;
 use App\Services\Waha\ChannelPhone;
+use App\Services\Waha\WahaCalls;
 use App\Services\Waha\WahaClient;
 use App\Services\Waha\WahaQr;
 use App\Services\Waha\WahaRequestException;
@@ -86,6 +87,7 @@ class ChannelCard extends Component
             return;
         }
 
+        app(WahaCalls::class)->applyQuietly($this->channel);
         $this->setStatus(ChannelStatus::STARTING);
     }
 
@@ -157,6 +159,7 @@ class ChannelCard extends Component
             return;
         }
 
+        app(WahaCalls::class)->applyQuietly($this->channel);
         $this->setStatus(ChannelStatus::STARTING);
     }
 
