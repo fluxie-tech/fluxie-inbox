@@ -39,8 +39,9 @@ responde com uma mensagem, e a chave e o texto são configurados dentro do app.
 
 1. **Compose para o que é fixo, app para o que é editável (escolhida pelo dono).** O compose leva o prazo da mídia, as quatro
    regras de ignorar e a liberação do app de ligações do WAHA. O app registra o app de ligações em cada sessão pela API de
-   apps do WAHA (`/api/apps`), que não reinicia a sessão. Custo: as instalações que já existem editam o compose no Coolify uma
-   vez, o que o prazo da mídia já exigiria.
+   apps do WAHA (`/api/apps`). Custo: as instalações que já existem editam o compose no Coolify uma vez, o que o prazo da
+   mídia já exigiria; e (descoberto no teste de 24/11) gravar o app reinicia a sessão por alguns segundos, por isso só se
+   grava quando algo mudou.
 2. **Tudo pela configuração da sessão enviada pelo app** (`config.ignore` e `apps` no `PUT /api/sessions`). Uma fonte só, mas
    cada salvamento derruba e religa todos os canais, e as sessões já conectadas só pegam a regra de ignorar no próximo
    "Conectar".
@@ -119,7 +120,8 @@ No staging, com o número de teste e o OK do dono para as variáveis novas:
 
 1. O app `calls` existe na imagem Core fixada e `POST /api/apps` com `WAHA_APPS_ENABLED=True` e `WAHA_APPS_ON=calls` aceita a
    configuração no formato da documentação (o Swagger da instância fica desligado), inclusive `group` sem mensagem.
-2. Criar, alterar e desligar o app não reinicia a sessão (o status segue `WORKING`).
+2. Criar, alterar e desligar o app não reinicia a sessão (o status segue `WORKING`). **Falhou no teste de 24/11: reinicia;
+   ver Anti-objetivos.**
 3. Uma ligação de teste é recusada e a mensagem chega ao cliente.
 4. Como a mensagem automática chega ao app pelo webhook (`message.any` com `fromMe`): se vira mensagem na conversa do ticket,
    se abre ticket sozinha e com que origem. O plano decide o tratamento a partir disso.
