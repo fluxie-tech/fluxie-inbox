@@ -4,12 +4,8 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 // Cada entrada: motivo e a data em que foi conferida. Tirar assim que houver versão corrigida e o Dependabot subir.
-const ALLOWED = [
-    // picomatch <= 4.0.7, ReDoS em extglob repetido. Sem versão corrigida em 17/11/2026 (a 4.0.7 é a última no npm e
-    // no GitHub). Entra só por ferramentas de build (vite, fontaine, laravel-vite-plugin), que leem globs do próprio
-    // projeto, não da entrada de usuário.
-    'GHSA-fc5q-39xc-vjpf',
-];
+// O GHSA-fc5q-39xc-vjpf (picomatch) saiu daqui em 24/11/2026: o GitHub retirou o aviso em 18/11/2026.
+const ALLOWED = [];
 
 const BLOCKING = new Set(['high', 'critical']);
 
