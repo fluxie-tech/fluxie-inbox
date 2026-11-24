@@ -103,7 +103,8 @@ responde com uma mensagem, e a chave e o texto são configurados dentro do app.
 ## Restrições
 
 - Imagem fixada `devlikeapro/waha:gows-2026.10.1` (WAHA Core, engine GOWS).
-- Nunca reiniciar sessão para aplicar a configuração de ligações.
+- Gravar o app `calls` reinicia a sessão por alguns segundos: aceito só numa mudança real e ao conectar; a conferência diária
+  não grava quando nada mudou.
 - Toda chamada ao WAHA passa pelo `WahaClient` (chave de API e base URL do ambiente).
 
 ## Confirmar antes de planejar o resto (primeira tarefa do plano)

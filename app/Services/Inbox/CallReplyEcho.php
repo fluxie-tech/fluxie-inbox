@@ -11,7 +11,7 @@ use App\Settings\CallSettings;
 final class CallReplyEcho
 {
     /**
-     * shortcut: casa pela origem API mais o texto; a mesma frase enviada pelo painel e com eco fora da janela também seria ignorada. Trocar por marca do WAHA se ele passar a identificar a resposta do app calls.
+     * shortcut: casa pela origem API mais o texto; a guarda roda antes do casamento do eco das mensagens do painel, então vale também dentro da janela do eco; o único efeito visível é um envio do painel que estourou o prazo (FAILED "sem resposta") com exatamente o texto da recusa não voltar a "enviada" pelo eco. Trocar por marca do WAHA se ele passar a identificar a resposta do app calls.
      */
     public static function matches(WahaEvent $event): bool
     {

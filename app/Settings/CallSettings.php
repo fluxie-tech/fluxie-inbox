@@ -30,7 +30,7 @@ final class CallSettings
     {
         $current = self::message();
 
-        if ($current !== $message) {
+        if ($message !== '' && $current !== $message) {
             $previous = array_values(array_unique([$current, ...self::previous()]));
             Setting::put('calls.previous_messages', array_slice($previous, 0, self::MAX_PREVIOUS));
         }

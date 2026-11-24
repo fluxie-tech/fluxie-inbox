@@ -52,6 +52,14 @@ class WahaCallsTest extends TestCase
         $this->assertSame(self::DEFAULT, CallSettings::message());
     }
 
+    public function test_salvar_texto_vazio_nao_guarda_o_anterior(): void
+    {
+        CallSettings::save(true, 'A');
+        CallSettings::save(false, '');
+
+        $this->assertSame([self::DEFAULT], CallSettings::knownMessages());
+    }
+
     public function test_textos_anteriores_ficam_conhecidos(): void
     {
         CallSettings::save(true, 'A');

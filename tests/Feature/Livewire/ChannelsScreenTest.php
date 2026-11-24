@@ -369,7 +369,7 @@ class ChannelsScreenTest extends TestCase
     public function test_reativar_marca_ativo_e_inicia_a_sessao(): void
     {
         Http::fake(fn ($request) => match (true) {
-            str_contains($request->url(), '/api/apps') => Http::response($request->method() === 'GET' ? [] : [], $request->method() === 'GET' ? 200 : 201),
+            str_contains($request->url(), '/api/apps') => Http::response([], $request->method() === 'GET' ? 200 : 201),
             $request->method() === 'GET' => Http::response(['message' => 'not found'], 404),
             default => Http::response(['status' => 'STARTING'], 201),
         });
@@ -433,7 +433,7 @@ class ChannelsScreenTest extends TestCase
     public function test_readicionar_a_mesma_sessao_reaproveita_o_canal_e_os_tickets(): void
     {
         Http::fake(fn ($request) => match (true) {
-            str_contains($request->url(), '/api/apps') => Http::response($request->method() === 'GET' ? [] : [], $request->method() === 'GET' ? 200 : 201),
+            str_contains($request->url(), '/api/apps') => Http::response([], $request->method() === 'GET' ? 200 : 201),
             $request->method() === 'GET' => Http::response(['message' => 'not found'], 404),
             default => Http::response(['status' => 'STARTING'], 201),
         });

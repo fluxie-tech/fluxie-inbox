@@ -6,8 +6,8 @@
 ligações em todos os canais pelo app `calls` do WAHA, com chave e texto editáveis em Configurações > Canais.
 
 **Architecture:** O compose leva o que é fixo (prazo da mídia, regras de ignorar, liberação do app `calls`). O app guarda a
-chave e o texto em `settings` (`CallSettings`) e os aplica por sessão pela API de apps do WAHA (`WahaCalls`), sem reiniciar
-sessão: ao salvar a tela, ao conectar um canal e numa conferência diária. O `app:purge-media` passa a expirar a mídia sem cópia
+chave e o texto em `settings` (`CallSettings`) e os aplica por sessão pela API de apps do WAHA (`WahaCalls`); gravar o app reinicia
+a sessão por segundos, aceito só numa mudança real e ao conectar (a conferência diária não grava se nada mudou): ao salvar a tela, ao conectar um canal e numa conferência diária. O `app:purge-media` passa a expirar a mídia sem cópia
 local com mais de 14 dias, e o `IngestMessage` ignora o eco da resposta automática de ligação.
 
 **Tech Stack:** Laravel 13, Livewire 4.4, Flux 2, PostgreSQL 18, WAHA `devlikeapro/waha:gows-2026.10.1` (Core, GOWS).
