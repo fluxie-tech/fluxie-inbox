@@ -30,6 +30,8 @@ Schedule::command('app:purge-audit-logs')->dailyAt('03:55')->withoutOverlapping(
 Schedule::command('app:check-releases')->dailyAt('07:40')->timezone(config()->string('app.display_timezone'))->when(fn (): bool => UpdateSettings::checkEnabled())->withoutOverlapping(10);
 // Fecha, devolve ou avisa a atualização do sistema que ficou aberta: a trava com backup e restauração não pode ficar presa.
 Schedule::command('app:update-watch')->everyMinute()->withoutOverlapping(10);
+// Confere a recusa de ligações no WAHA: o app `calls` some se a sessão for recriada fora do painel.
+Schedule::command('app:apply-call-policy')->dailyAt('04:05')->withoutOverlapping(10);
 Schedule::command('app:recover-messages')->dailyAt('04:15')->withoutOverlapping(10);
 
 // Em segundo plano, para uma rodada lenta não atrasar as demais tarefas do minuto (elas rodam em sequência).

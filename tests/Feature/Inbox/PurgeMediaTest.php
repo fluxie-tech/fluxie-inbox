@@ -53,6 +53,22 @@ class PurgeMediaTest extends TestCase
         return $message->fresh() ?? $message;
     }
 
+    private function waiting(int $ageDays, string $type = 'media'): Message
+    {
+        $message = Message::factory()->create([
+            'ticket_id' => $this->ticket->id,
+            'direction' => MessageDirection::IN,
+            'origin' => MessageOrigin::CONTATO,
+            'type' => $type,
+            'body' => '',
+            'media_ref' => $type === 'media' ? 'abc.jpg' : null,
+            'media_path' => null,
+        ]);
+        Message::query()->whereKey($message->id)->update(['created_at' => now()->subDays($ageDays)]);
+
+        return $message->fresh() ?? $message;
+    }
+
     public function test_apaga_so_o_que_passou_de_90_dias_e_registra_o_evento(): void
     {
         $old = $this->attachment('outbound/2026/07/velho.pdf', 91);
@@ -114,6 +130,113 @@ class PurgeMediaTest extends TestCase
 
         $this->assertSame('Legenda que fica para sempre', $message->fresh()?->body);
         $this->assertSame('orcamento.pdf', $message->fresh()?->media_name);
+    }
+
+    public function test_midia_sem_copia_com_mais_de_14_dias_expira(): void
+    {
+        $message = $this->waiting(15);
+
+        $this->artisan('app:purge-media')->assertSuccessful();
+
+        $this->assertNotNull($message->fresh()?->media_purged_at);
+        $this->assertSame($message->id, TicketEvent::query()->where('type', 'media_purged')->sole()->payload['message_id'] ?? null);
+    }
+
+    public function test_midia_sem_copia_com_menos_de_14_dias_fica(): void
+    {
+        $message = $this->waiting(13);
+
+        $this->artisan('app:purge-media')->assertSuccessful();
+
+        $this->assertNull($message->fresh()?->media_purged_at);
+        $this->assertSame(0, TicketEvent::query()->where('type', 'media_purged')->count());
+    }
+
+    public function test_midia_com_copia_de_20_dias_segue_os_90(): void
+    {
+        $message = $this->attachment('inbound/1/2026/10/recente.pdf', 20);
+
+        $this->artisan('app:purge-media')->assertSuccessful();
+
+        Storage::disk('media')->assertExists('inbound/1/2026/10/recente.pdf');
+        $this->assertNull($message->fresh()?->media_purged_at);
+    }
+
+    public function test_texto_antigo_sem_midia_nao_e_marcado(): void
+    {
+        $message = $this->waiting(30, 'text');
+
+        $this->artisan('app:purge-media')->assertSuccessful();
+
+        $this->assertNull($message->fresh()?->media_purged_at);
+    }
+
+    public function test_midia_sem_copia_ja_expirada_nao_gera_evento_de_novo(): void
+    {
+        $this->waiting(15);
+
+        $this->artisan('app:purge-media')->assertSuccessful();
+        $this->artisan('app:purge-media')->assertSuccessful();
+
+        $this->assertSame(1, TicketEvent::query()->where('type', 'media_purged')->count());
+    }
+
+    public function test_expira_mais_de_mil_anexos_sem_copia_numa_rodada(): void
+    {
+        $old = now()->subDays(15);
+        $rows = [];
+        for ($i = 0; $i < 1001; $i++) {
+            $rows[] = [
+                'ticket_id' => $this->ticket->id,
+                'channel_id' => $this->ticket->channel_id,
+                'contact_id' => $this->ticket->contact_id,
+                'wa_message_id' => "BULK{$i}",
+                'direction' => MessageDirection::IN->value,
+                'origin' => MessageOrigin::CONTATO->value,
+                'type' => 'media',
+                'body' => '',
+                'media_ref' => 'abc.jpg',
+                'sent_at' => $old,
+                'created_at' => $old,
+                'updated_at' => $old,
+            ];
+        }
+        foreach (array_chunk($rows, 300) as $chunk) {
+            Message::query()->insert($chunk);
+        }
+
+        $this->artisan('app:purge-media')->assertSuccessful();
+
+        $this->assertSame(0, Message::query()->where('type', 'media')->whereNull('media_purged_at')->count());
+    }
+
+    public function test_expira_mais_de_mil_anexos_com_copia_de_90_dias_numa_rodada(): void
+    {
+        $old = now()->subDays(100);
+        $rows = [];
+        for ($i = 0; $i < 1001; $i++) {
+            $rows[] = [
+                'ticket_id' => $this->ticket->id,
+                'channel_id' => $this->ticket->channel_id,
+                'contact_id' => $this->ticket->contact_id,
+                'wa_message_id' => "COPY{$i}",
+                'direction' => MessageDirection::IN->value,
+                'origin' => MessageOrigin::CONTATO->value,
+                'type' => 'media',
+                'body' => '',
+                'media_path' => "inbound/bulk/{$i}.jpg",
+                'sent_at' => $old,
+                'created_at' => $old,
+                'updated_at' => $old,
+            ];
+        }
+        foreach (array_chunk($rows, 300) as $chunk) {
+            Message::query()->insert($chunk);
+        }
+
+        $this->artisan('app:purge-media')->assertSuccessful();
+
+        $this->assertSame(0, Message::query()->where('type', 'media')->whereNull('media_purged_at')->count());
     }
 
     public function test_a_tela_avisa_que_o_arquivo_expirou(): void

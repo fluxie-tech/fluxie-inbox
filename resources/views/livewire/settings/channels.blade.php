@@ -36,6 +36,30 @@
             </div>
         </x-panel>
 
+        <x-panel title="Ligações">
+            <form wire:submit="saveCalls" class="space-y-4 p-4">
+                <flux:switch wire:model.live="rejectCalls" label="Recusar ligações" />
+
+                <div>
+                    <flux:textarea wire:model="callMessage" label="Mensagem enviada a quem ligar" rows="3" :disabled="! $rejectCalls" />
+                    @error('callMessage')
+                        <p class="mt-2 text-xs text-danger">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <p class="text-xs leading-relaxed text-ink-3">
+                    A ligação deixa de tocar também no celular. Salvar uma mudança reinicia a conexão do WhatsApp por alguns segundos.
+                </p>
+
+                <div class="flex items-center gap-3">
+                    <flux:button type="submit" size="sm" variant="primary" wire:loading.attr="disabled" wire:target="saveCalls">Salvar</flux:button>
+                    @if ($callsNotice !== '')
+                        <p role="status" class="text-xs text-ink-2">{{ $callsNotice }}</p>
+                    @endif
+                </div>
+            </form>
+        </x-panel>
+
         <x-panel title="Webhook de entrada">
             <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                 <p class="min-w-0 break-all font-mono text-xs text-ink-2">{{ $webhookUrl }}</p>

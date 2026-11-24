@@ -29,6 +29,7 @@ enum AuditAction: string
     case UpdateSucceeded = 'update.succeeded';
     case UpdateReverted = 'update.reverted';
     case UpdateFailed = 'update.failed';
+    case CallSettingsUpdated = 'calls.settings_updated';
 
     public function label(): string
     {
@@ -57,6 +58,7 @@ enum AuditAction: string
             self::UpdateSucceeded => 'Atualização concluída',
             self::UpdateReverted => 'Atualização desfeita',
             self::UpdateFailed => 'Atualização falhou',
+            self::CallSettingsUpdated => 'Ligações alteradas',
         };
     }
 
@@ -66,7 +68,7 @@ enum AuditAction: string
             self::Login, self::LoginFailed, self::Logout => 'Acesso',
             self::UserCreated, self::UserUpdated, self::UserRoleChanged, self::UserPasswordSet, self::UserDeactivated, self::UserActivated => 'Usuários',
             self::BackupDownloaded, self::BackupManualRequested, self::RestoreRequested, self::RestoreSucceeded, self::RestoreFailed, self::RestoreSwitched => 'Backup',
-            self::GoogleConnected, self::GoogleDisconnected, self::ChannelCreated, self::ChannelDeleted, self::RetentionPurgeRequested, self::UpdateRequested, self::UpdateSucceeded, self::UpdateReverted, self::UpdateFailed => 'Configurações',
+            self::GoogleConnected, self::GoogleDisconnected, self::ChannelCreated, self::ChannelDeleted, self::RetentionPurgeRequested, self::UpdateRequested, self::UpdateSucceeded, self::UpdateReverted, self::UpdateFailed, self::CallSettingsUpdated => 'Configurações',
         };
     }
 

@@ -120,8 +120,10 @@ Conferir no Coolify antes de subir a produção (o beta é ambiente de desenvolv
 | Auditoria do sistema (`audit_logs`: IP e e-mail digitado nas falhas de login) | 365 dias | `app:purge-audit-logs`, 03:55 |
 | Anexos (arquivo; o texto e os eventos ficam) | 90 dias | `app:purge-media`, 03:30 |
 | Alertas do sino | 7 dias | `app:purge-notifications`, 03:45 |
+| Arquivo de mídia no WAHA (`waha-media`) | 14 dias | o próprio WAHA (`WHATSAPP_FILES_LIFETIME`) |
+| Mensagens de grupo, status, canal e lista de transmissão | não recebidas pelo app; a mídia que o próprio número envia a um grupo ainda fica no WAHA por 14 dias | `WAHA_SESSION_CONFIG_IGNORE_*` |
 
-O texto das mensagens e os tickets não têm prazo: decisão de LGPD ainda em aberto.
+O texto das mensagens e os tickets não têm prazo: decisão de LGPD ainda em aberto. Anexo recebido que não chegou a ter cópia no disco expira com 14 dias (o `app:purge-media` o marca como expirado).
 
 ## Varreduras automáticas
 
