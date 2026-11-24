@@ -81,6 +81,17 @@ class ChannelsCallsTest extends TestCase
         $this->assertSame(CallSettings::DEFAULT_MESSAGE, CallSettings::message());
     }
 
+    public function test_mensagens_de_validacao_em_portugues(): void
+    {
+        Livewire::test(Channels::class)
+            ->set('callMessage', '')
+            ->call('saveCalls')
+            ->assertHasErrors(['callMessage' => 'Escreva a mensagem enviada a quem ligar.'])
+            ->set('callMessage', str_repeat('a', CallSettings::MAX_MESSAGE + 1))
+            ->call('saveCalls')
+            ->assertHasErrors(['callMessage' => 'A mensagem pode ter no máximo '.CallSettings::MAX_MESSAGE.' caracteres.']);
+    }
+
     #[DataProvider('switchValues')]
     public function test_texto_vazio_e_recusado_depois_de_alternar_a_chave(mixed $on): void
     {

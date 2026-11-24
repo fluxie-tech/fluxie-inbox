@@ -41,7 +41,10 @@ class Channels extends Component
         $this->callMessage = trim($this->callMessage);
         $this->validate([
             'callMessage' => ['required_if:rejectCalls,true', 'string', 'max:'.CallSettings::MAX_MESSAGE, new NoControlChars(allowNewlines: true)],
-        ], attributes: ['callMessage' => 'mensagem']);
+        ], [
+            'callMessage.required_if' => 'Escreva a mensagem enviada a quem ligar.',
+            'callMessage.max' => 'A mensagem pode ter no máximo '.CallSettings::MAX_MESSAGE.' caracteres.',
+        ], ['callMessage' => 'mensagem']);
 
         CallSettings::save($this->rejectCalls, $this->callMessage);
         Auditor::record(AuditAction::CallSettingsUpdated, auth()->user(), detail: ['reject' => $this->rejectCalls]);
