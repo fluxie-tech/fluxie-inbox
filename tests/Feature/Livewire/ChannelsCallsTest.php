@@ -81,6 +81,25 @@ class ChannelsCallsTest extends TestCase
         $this->assertSame(CallSettings::DEFAULT_MESSAGE, CallSettings::message());
     }
 
+    #[DataProvider('switchValues')]
+    public function test_texto_vazio_e_recusado_depois_de_alternar_a_chave(mixed $on): void
+    {
+        Livewire::test(Channels::class)
+            ->set('rejectCalls', false)
+            ->set('rejectCalls', $on)
+            ->set('callMessage', '')
+            ->call('saveCalls')
+            ->assertHasErrors('callMessage');
+
+        $this->assertSame(CallSettings::DEFAULT_MESSAGE, CallSettings::message());
+    }
+
+    /** @return array<string, array{mixed}> */
+    public static function switchValues(): array
+    {
+        return ['bool' => [true], 'inteiro' => [1], 'string 1' => ['1'], 'string true' => ['true'], 'on' => ['on']];
+    }
+
     public function test_chave_desligada_aceita_texto_vazio(): void
     {
         Livewire::test(Channels::class)
