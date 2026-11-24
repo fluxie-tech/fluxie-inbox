@@ -48,22 +48,30 @@ Nada de código. O controlador conduz, o dono executa o que é no Coolify e no c
   `WHATSAPP_FILES_LIFETIME=1209600`, `WAHA_SESSION_CONFIG_IGNORE_STATUS=true`, `WAHA_SESSION_CONFIG_IGNORE_GROUPS=true`,
   `WAHA_SESSION_CONFIG_IGNORE_CHANNELS=true`, `WAHA_SESSION_CONFIG_IGNORE_BROADCAST=true`, `WAHA_APPS_ENABLED=True`,
   `WAHA_APPS_ON=calls`, e trocar o `WHATSAPP_FILES_LIFETIME: "0"`. Reiniciar só o `waha`.
-- [ ] **Step 2:** Depois do reinício: `du -sh /app/.media` no contêiner `waha` (deve cair) e status da sessão `WORKING`.
-- [ ] **Step 3:** No terminal do contêiner `app`, criar o app (sessão `Principal`):
+  Antes de reiniciar, plantar um arquivo velho para provar a varredura da partida (o staging foi zerado em 23/11, então o
+  `du` sozinho não cai): `touch -d '20 days ago' /app/.media/Principal/zz-teste.bin` no contêiner `waha`.
+- [ ] **Step 2:** Depois do reinício: `ls /app/.media/Principal/zz-teste.bin` some em segundos; status da sessão `WORKING`.
+- [ ] **Step 3:** No terminal do contêiner `app` (sessão `Principal`; `S` = `"$WAHA_URL/api/sessions/Principal"`), cada
+  comando seguido de `curl -s -H "X-Api-Key: $WAHA_API_KEY" $S | grep -o '"status":"[A-Z_]*"'`:
   ```
   curl -s -X POST -H "X-Api-Key: $WAHA_API_KEY" -H 'Content-Type: application/json' "$WAHA_URL/api/apps" -d '{"app":"calls","session":"Principal","id":"app_Principal","config":{"dm":{"reject":true,"message":"Este número não recebe ligações. Envie sua mensagem em texto ou áudio que responderemos por aqui."},"group":{"reject":true}}}'
   curl -s -H "X-Api-Key: $WAHA_API_KEY" "$WAHA_URL/api/apps?session=Principal"
-  curl -s -H "X-Api-Key: $WAHA_API_KEY" "$WAHA_URL/api/sessions/Principal" | grep -o '"status":"[A-Z_]*"'
+  curl -s -X PUT -H "X-Api-Key: $WAHA_API_KEY" -H 'Content-Type: application/json' "$WAHA_URL/api/apps/app_Principal" -d '<mesmo corpo com outro texto>'
   ```
-  Esperado: o app listado, e a sessão segue `WORKING` (não reiniciou). Se `group` sem `message` for recusado, repetir com o
-  mesmo texto do `dm` e anotar: a Task 3 usa o texto nos dois.
+  Esperado: o app listado, a alteração aceita e a sessão sempre `WORKING`. Se `group` sem `message` for recusado, repetir
+  com o mesmo texto do `dm` e anotar: a Task 3 usa o texto nos dois. Anotar também o código HTTP de
+  `GET /api/apps?session=NaoExiste` e de um `POST /api/apps` com `"session":"NaoExiste"`: a Task 3 conta como `skipped`
+  exatamente a resposta que o WAHA dá para sessão inexistente (ajustar o teste `test_apply_all_pula_404_e_continua` a ela).
 - [ ] **Step 4:** O dono liga para o número de teste: a ligação é recusada e a mensagem chega ao celular dele.
 - [ ] **Step 5:** Conferir no app como a mensagem automática chegou: se apareceu um ticket "em atendimento" sem responsável
-  ou uma mensagem "fora do painel" num ticket aberto (comportamento esperado do `IngestMessage` hoje), a Task 6 vale como
-  escrita. Se nenhum eco chegou ao app, a Task 6 sai do plano (`Desvio:` no ledger).
-- [ ] **Step 6:** O dono manda uma mensagem num grupo de que o número de teste participa: nenhum evento novo de grupo em
-  Configurações > Canais (últimos eventos).
-- [ ] **Step 7:** Remover o app criado à mão (`curl -X DELETE ... "$WAHA_URL/api/apps/app_Principal"`); o código recria.
+  ou uma mensagem "fora do painel" num ticket aberto (comportamento esperado do `IngestMessage` hoje), a Task 6 vale. Guardar
+  no ledger os campos do `payload` do `waha_events` desse eco (sem texto de cliente nem telefone) ao lado dos de uma mensagem
+  digitada no celular: se algum campo distingue a resposta do app `calls`, a Task 6 casa por ele. Se nenhum eco chegou ao
+  app, a Task 6 sai do plano (`Desvio:` no ledger).
+- [ ] **Step 6:** O dono manda uma mensagem de texto e uma imagem num grupo de que o número de teste participa: nenhum evento
+  novo de grupo em Configurações > Canais (últimos eventos) e a contagem de arquivos em `/app/.media/Principal` não sobe.
+- [ ] **Step 7:** Remover o app criado à mão (`curl -X DELETE ... "$WAHA_URL/api/apps/app_Principal"`), conferir o status
+  `WORKING` de novo; o código recria.
 - [ ] **Step 8:** Se o Step 3 mostrar que só reiniciando a sessão funciona, **parar** e perguntar ao dono.
 
 ### Task 2: Compose, mídia de 14 dias no `app:purge-media`, comentários e docs
@@ -118,6 +126,9 @@ Nada de código. O controlador conduz, o dono executa o que é no Coolify e no c
   - `CallSettings::rejects(): bool` (`Setting::get('calls.reject', true)`), `CallSettings::message(): string` (texto salvo
     ou `CallSettings::DEFAULT_MESSAGE`), `CallSettings::save(bool $reject, string $message): void`,
     `CallSettings::MAX_MESSAGE = 500`.
+  - `CallSettings::knownMessages(): list<string>` — o texto atual mais os anteriores (chave `calls.previous_messages`; o
+    `save` guarda o texto que sai quando ele muda, no máximo 10, sem repetir, incluindo o padrão quando ele é trocado). A
+    Task 6 usa isto para reconhecer respostas antigas que a recuperação relê do WAHA.
   - `WahaCalls::apply(Channel $channel): void` — lança `WahaRequestException`/`ConnectionException`.
   - `WahaCalls::applyQuietly(Channel $channel): void` — nunca lança; falha vai a `Log::warning`.
   - `WahaCalls::applyAll(): array{applied: int, skipped: int, failed: int}` — canais com `active = true`; 404 do WAHA conta
@@ -127,6 +138,8 @@ Nada de código. O controlador conduz, o dono executa o que é no Coolify e no c
   canal `waha_session = 'main'`):
   - `test_padrao_recusa_com_o_texto_padrao`: sem nada salvo → `rejects()` true e `message()` igual ao texto das Global
     Constraints.
+  - `test_textos_anteriores_ficam_conhecidos`: `save(true, 'A')`, `save(true, 'B')` → `knownMessages()` contém `B`, `A` e o
+    padrão; salvar `B` de novo não duplica; 12 trocas guardam no máximo 10 anteriores.
   - `test_cria_o_app_quando_nao_existe`: `GET */api/apps?session=main` → `[]`, `POST */api/apps` → 201. Assert do POST:
     `app = 'calls'`, `id = 'app_main'`, `session = 'main'`, `config.dm.reject = true`, `config.dm.message` = texto salvo,
     `config.group.reject = true` e sem chave `message` em `group`.
@@ -180,7 +193,8 @@ Nada de código. O controlador conduz, o dono executa o que é no Coolify e no c
   é 0, senão "Configuração salva; será aplicada aos canais quando o WhatsApp responder.". Blade: `flux:switch` "Recusar
   ligações", `flux:textarea` "Mensagem enviada a quem ligar" (desabilitado com a chave desligada), botão "Salvar", texto de
   ajuda curto dizendo que a ligação para de tocar também no celular, e o `callsNotice` com `role="status"`.
-- [ ] **Step 4:** `php artisan test --filter=ChannelsCallsTest` e `--filter=ChannelsScreenTest` e `--filter=AuditActionTest` → PASS.
+- [ ] **Step 4:** Testes afetados (comando do CLAUDE.md; mudança em Blade não aparece nele, então também
+  `--filter="ChannelsCallsTest|ChannelsScreenTest"`) → PASS.
 - [ ] **Step 5: Commit** `feat: seção Ligações em Configurações > Canais`
 
 ### Task 5: Aplicar ao conectar e conferência diária
@@ -206,8 +220,11 @@ Nada de código. O controlador conduz, o dono executa o que é no Coolify e no c
 - [ ] **Step 2:** `php artisan test --filter="ChannelCardCallsTest|ApplyCallPolicyCommandTest"` → FAIL.
 - [ ] **Step 3:** `ChannelCard`: depois de cada `start()` bem-sucedido, `app(WahaCalls::class)->applyQuietly($this->channel)`.
   Comando: chama `applyAll()` e imprime `aplicados: N, pulados: N, falhas: N`; sai com sucesso mesmo com falhas (a próxima
-  rodada corrige). Agendamento às 04:05.
-- [ ] **Step 4:** Os dois filtros acima e `--filter=WahaClientTest` → PASS.
+  rodada corrige). Agendamento às 04:05. O `TestCase` não bloqueia requisição sem fake: todo teste existente que chama
+  `connect` ou o segundo caminho de `start()` do `ChannelCard` ganha o fake `'*/api/apps*' => Http::response([], 200)` (e
+  `201` para o POST), para não fazer chamada real engolida pelo `applyQuietly`.
+- [ ] **Step 4:** Testes afetados (comando do CLAUDE.md:
+  `git status --porcelain | cut -c4- | codegraph affected --stdin -d 2 --quiet | xargs -r php artisan test`) → PASS.
 - [ ] **Step 5: Commit** `feat: ligações recusadas aplicadas ao conectar e conferidas todo dia`
 
 ### Task 6: Ignorar o eco da resposta automática de ligação
@@ -228,11 +245,17 @@ Só se o portão (Task 1, Step 5) mostrou o eco chegando ao app.
     `last_outbound_at` do ticket inalterado.
   - `test_texto_diferente_do_configurado_entra_como_hoje`: corpo diferente → mensagem gravada com origem `FORA_DO_PAINEL`.
   - `test_com_a_chave_desligada_o_eco_entra_como_hoje`: `CallSettings::save(false, <mesmo texto>)` → mensagem gravada.
+  - `test_texto_antigo_relido_pela_recuperacao_depois_da_troca_e_ignorado`: salvar `A`, depois `B`; ingerir no modo
+    `recovered` um eco `fromMe` com texto `A` → nenhum `Ticket` nem `Message`.
 - [ ] **Step 2:** `php artisan test --filter=CallReplyEchoTest` → FAIL.
-- [ ] **Step 3:** No `__invoke`, depois de resolver `$incoming` e antes do contato: `fromMe`, `type === 'text'`,
-  `CallSettings::rejects()` e `trim($incoming->body) === trim(CallSettings::message())` → `return null`. Comentário:
+- [ ] **Step 3:** No `__invoke`, depois de resolver `$incoming` e antes do contato: se o portão (Task 1, Step 5) achou um
+  campo do payload que marca a resposta do app `calls`, casar por ele (e o teste usa esse campo); senão, `fromMe`,
+  `type === 'text'` e `trim($incoming->body)` presente em `CallSettings::knownMessages()` (comparando com `trim`) →
+  `return null`, só com `CallSettings::rejects()` ligado (com a chave desligada nada é ignorado). Comentário no caso do texto:
   `shortcut: casa pelo texto; o mesmo texto digitado no celular também é ignorado. Trocar por marca do WAHA se ele passar a identificar a resposta do app calls.`
-- [ ] **Step 4:** `php artisan test --filter="CallReplyEchoTest|IngestMessageTest"` → PASS.
+  Limite aceito, anotar no ledger: o `message.ack` do eco ignorado vira o aviso "Ack descartado" no log a cada ligação
+  recusada.
+- [ ] **Step 4:** Testes afetados (comando do CLAUDE.md) → PASS.
 - [ ] **Step 5: Commit** `fix: resposta automática de ligação não abre ticket nem para o SLA`
 
 ### Task 7: Verificação, staging e docs de instalação
