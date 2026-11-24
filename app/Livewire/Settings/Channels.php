@@ -37,6 +37,7 @@ class Channels extends Component
     {
         $this->authorize('admin');
 
+        $this->callsNotice = '';
         $this->callMessage = trim($this->callMessage);
         $this->validate([
             'callMessage' => ['required_if:rejectCalls,true', 'string', 'max:'.CallSettings::MAX_MESSAGE, new NoControlChars(allowNewlines: true)],
@@ -45,9 +46,14 @@ class Channels extends Component
         CallSettings::save($this->rejectCalls, $this->callMessage);
         Auditor::record(AuditAction::CallSettingsUpdated, auth()->user(), detail: ['reject' => $this->rejectCalls]);
 
-        $this->callsNotice = app(WahaCalls::class)->applyAll()['failed'] === 0
-            ? 'Configuração aplicada aos canais.'
-            : 'Configuração salva; será aplicada aos canais quando o WhatsApp responder.';
+        $this->callMessage = CallSettings::message();
+
+        $result = app(WahaCalls::class)->applyAll();
+        $this->callsNotice = match (true) {
+            $result['applied'] + $result['unchanged'] + $result['failed'] === 0 => 'Configuração salva. Nenhum canal conectado agora; ela vale quando um canal conectar.',
+            $result['failed'] === 0 => 'Configuração aplicada aos canais.',
+            default => 'Configuração salva; será aplicada aos canais quando o WhatsApp responder.',
+        };
     }
 
     public function addChannel(): void

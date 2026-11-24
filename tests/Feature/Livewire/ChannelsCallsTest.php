@@ -87,7 +87,8 @@ class ChannelsCallsTest extends TestCase
             ->set('rejectCalls', false)
             ->set('callMessage', '')
             ->call('saveCalls')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertSet('callMessage', CallSettings::DEFAULT_MESSAGE);
 
         $this->assertFalse(CallSettings::rejects());
     }
@@ -97,5 +98,23 @@ class ChannelsCallsTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => UserRole::ATENDENTE]));
 
         Livewire::test(Channels::class)->call('saveCalls')->assertForbidden();
+    }
+
+    public function test_validacao_que_falha_limpa_o_aviso_anterior(): void
+    {
+        Livewire::test(Channels::class)
+            ->call('saveCalls')
+            ->assertSet('callsNotice', 'Configuração salva. Nenhum canal conectado agora; ela vale quando um canal conectar.')
+            ->set('callMessage', '')
+            ->call('saveCalls')
+            ->assertHasErrors('callMessage')
+            ->assertSet('callsNotice', '');
+    }
+
+    public function test_sem_canal_conectado_avisa_que_vale_ao_conectar(): void
+    {
+        Livewire::test(Channels::class)
+            ->call('saveCalls')
+            ->assertSet('callsNotice', 'Configuração salva. Nenhum canal conectado agora; ela vale quando um canal conectar.');
     }
 }
