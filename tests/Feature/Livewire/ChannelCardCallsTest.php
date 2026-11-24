@@ -60,5 +60,6 @@ class ChannelCardCallsTest extends TestCase
         ]);
 
         $this->assertSame(ChannelStatus::STARTING, $this->connect()->status);
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/api/apps'));
     }
 }

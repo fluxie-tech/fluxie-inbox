@@ -368,14 +368,18 @@ class ChannelsScreenTest extends TestCase
 
     public function test_reativar_marca_ativo_e_inicia_a_sessao(): void
     {
-        Http::fake(fn ($request) => $request->method() === 'GET' ? Http::response(['message' => 'not found'], 404) : Http::response(['status' => 'STARTING'], 201));
+        Http::fake(fn ($request) => match (true) {
+            str_contains($request->url(), '/api/apps') => Http::response($request->method() === 'GET' ? [] : [], $request->method() === 'GET' ? 200 : 201),
+            $request->method() === 'GET' => Http::response(['message' => 'not found'], 404),
+            default => Http::response(['status' => 'STARTING'], 201),
+        });
         $channel = Channel::factory()->create(['waha_session' => 'main', 'active' => false]);
 
         Livewire::actingAs($this->admin())->test(ChannelCard::class, ['channel' => $channel])->call('reactivate');
 
         $this->assertTrue($channel->fresh()->active);
         $this->assertSame(ChannelStatus::STARTING, $channel->fresh()->status);
-        Http::assertSent(fn ($request) => $request->method() === 'POST' && str_ends_with($request->url(), '/api/sessions') && $request['name'] === 'main');
+        Http::assertSent(fn ($request) => $request->method() === 'POST' && str_ends_with($request->url(), '/api/sessions') && ($request['name'] ?? null) === 'main');
     }
 
     public function test_reativar_com_waha_fora_mantem_ativo_e_mostra_o_erro(): void
@@ -428,7 +432,11 @@ class ChannelsScreenTest extends TestCase
 
     public function test_readicionar_a_mesma_sessao_reaproveita_o_canal_e_os_tickets(): void
     {
-        Http::fake(fn ($request) => $request->method() === 'GET' ? Http::response(['message' => 'not found'], 404) : Http::response(['status' => 'STARTING'], 201));
+        Http::fake(fn ($request) => match (true) {
+            str_contains($request->url(), '/api/apps') => Http::response($request->method() === 'GET' ? [] : [], $request->method() === 'GET' ? 200 : 201),
+            $request->method() === 'GET' => Http::response(['message' => 'not found'], 404),
+            default => Http::response(['status' => 'STARTING'], 201),
+        });
         $channel = Channel::factory()->create(['waha_session' => 'main']);
         $ticket = $this->ticketOn($channel);
 
@@ -437,7 +445,7 @@ class ChannelsScreenTest extends TestCase
 
         Livewire::actingAs($this->admin())->test(ChannelCard::class, ['channel' => $channel])->call('connect');
 
-        Http::assertSent(fn ($request) => $request->method() === 'POST' && str_ends_with($request->url(), '/api/sessions') && $request['name'] === 'main');
+        Http::assertSent(fn ($request) => $request->method() === 'POST' && str_ends_with($request->url(), '/api/sessions') && ($request['name'] ?? null) === 'main');
         $this->assertSame(1, Channel::query()->count());
         $this->assertSame($channel->id, $ticket->fresh()->channel_id);
     }

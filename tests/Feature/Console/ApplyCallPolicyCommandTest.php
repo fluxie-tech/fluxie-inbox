@@ -25,6 +25,21 @@ class ApplyCallPolicyCommandTest extends TestCase
         $this->artisan('app:apply-call-policy')->expectsOutputToContain('aplicados: 2')->assertSuccessful();
     }
 
+    public function test_falha_num_canal_sai_com_sucesso_e_conta(): void
+    {
+        config(['services.waha.url' => 'http://waha.test:3000', 'services.waha.key' => 'k']);
+        Http::fake(fn ($request) => match (true) {
+            str_contains($request->url(), 'session=ruim') => Http::response(['message' => 'erro'], 500),
+            default => Http::response([], $request->method() === 'GET' ? 200 : 201),
+        });
+        Channel::factory()->connected()->create(['waha_session' => 'ruim']);
+        Channel::factory()->connected()->create(['waha_session' => 'bom']);
+
+        $this->artisan('app:apply-call-policy')
+            ->expectsOutputToContain('aplicados: 1, sem mudança: 0, falhas: 1')
+            ->assertSuccessful();
+    }
+
     public function test_esta_agendado_todo_dia(): void
     {
         $commands = collect(app(Schedule::class)->events())->map(fn ($event): string => (string) $event->command);
