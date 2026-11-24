@@ -93,7 +93,7 @@ class ResolveMessageMediaJob implements ShouldQueue
         MessageStatusChanged::dispatch($message);
     }
 
-    /** Guarda no disco de mídia o arquivo que o WAHA tem, lido em stream (o WAHA só o mantém por alguns dias). */
+    /** Guarda no disco de mídia o arquivo que o WAHA tem, lido em stream (o WAHA o mantém por 14 dias). */
     private function copyToDisk(Message $message, WahaMedia $client, string $ref): void
     {
         $response = $client->streamFile($ref, null);
