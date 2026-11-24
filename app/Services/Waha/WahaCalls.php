@@ -38,7 +38,12 @@ class WahaCalls
                 return false;
             }
 
-            $client->check($client->http()->delete('/api/apps/'.$id));
+            $deleted = $client->http()->delete('/api/apps/'.$id);
+
+            // 404: o app sumiu entre a consulta e a remoção, que é o resultado desejado.
+            if ($deleted->status() !== 404) {
+                $client->check($deleted);
+            }
 
             return true;
         }

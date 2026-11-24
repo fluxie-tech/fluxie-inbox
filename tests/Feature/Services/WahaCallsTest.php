@@ -174,5 +174,24 @@ class WahaCallsTest extends TestCase
 
         (new WahaCalls)->applyQuietly($this->channel());
 
+        $this->addToAssertionCount(1); // chegou aqui sem exceção
+    }
+
+    public function test_app_desativado_com_config_igual_e_reativado(): void
+    {
+        Http::fake(['*/api/apps*' => Http::sequence()->push([$this->app('main', 'Igual', false)], 200)->push([], 200)]);
+        CallSettings::save(true, 'Igual');
+
+        $this->assertTrue((new WahaCalls)->apply($this->channel()));
+
+        Http::assertSent(fn (Request $r) => $r->method() === 'PUT' && $r->url() === 'http://waha.test:3000/api/apps/app_main');
+    }
+
+    public function test_delete_que_ja_sumiu_conta_como_removido(): void
+    {
+        Http::fake(['*/api/apps*' => Http::sequence()->push([$this->app('main', 'x')], 200)->push('', 404)]);
+        CallSettings::save(false, 'x');
+
+        $this->assertTrue((new WahaCalls)->apply($this->channel()));
     }
 }
