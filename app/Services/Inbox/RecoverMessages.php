@@ -18,7 +18,7 @@ use Throwable;
  */
 class RecoverMessages
 {
-    /** O GOWS guarda só alguns dias de histórico; pedir mais só custa páginas vazias. */
+    /** Teto da janela de recuperação; pedir mais só custa páginas vazias. */
     private const MAX_WINDOW_DAYS = 7;
 
     public function __invoke(Channel $channel, CarbonInterface $from, CarbonInterface $to): RecoveryResult
@@ -69,7 +69,7 @@ class RecoverMessages
                 ],
             );
 
-            return app(IngestMessage::class)($event);
+            return CallReplyEcho::matches($event) ? null : app(IngestMessage::class)($event);
         } catch (Throwable $e) {
             // Uma mensagem ruim não pode impedir as outras; a próxima execução tenta de novo.
             Log::warning('Recuperação: mensagem não gravada', ['canal' => $channel->id, 'id' => $data['id'], 'erro' => $e->getMessage()]);

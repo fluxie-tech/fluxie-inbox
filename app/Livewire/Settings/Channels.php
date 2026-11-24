@@ -3,8 +3,13 @@
 namespace App\Livewire\Settings;
 
 use App\Actions\Channels\CreateChannel;
+use App\Enums\AuditAction;
 use App\Models\Channel;
 use App\Models\WahaEvent;
+use App\Rules\NoControlChars;
+use App\Services\Audit\Auditor;
+use App\Services\Waha\WahaCalls;
+use App\Settings\CallSettings;
 use App\Settings\WahaSettings;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\On;
@@ -15,6 +20,44 @@ use Livewire\Component;
 class Channels extends Component
 {
     public string $sessionName = '';
+
+    public bool $rejectCalls = true;
+
+    public string $callMessage = '';
+
+    public string $callsNotice = '';
+
+    public function mount(): void
+    {
+        $this->rejectCalls = CallSettings::rejects();
+        $this->callMessage = CallSettings::message();
+    }
+
+    public function saveCalls(): void
+    {
+        $this->authorize('admin');
+
+        $this->callsNotice = '';
+        $this->callMessage = trim($this->callMessage);
+        $this->validate([
+            'callMessage' => ['required_if:rejectCalls,true', 'string', 'max:'.CallSettings::MAX_MESSAGE, new NoControlChars(allowNewlines: true)],
+        ], [
+            'callMessage.required_if' => 'Escreva a mensagem enviada a quem ligar.',
+            'callMessage.max' => 'A mensagem pode ter no máximo '.CallSettings::MAX_MESSAGE.' caracteres.',
+        ], ['callMessage' => 'mensagem']);
+
+        CallSettings::save($this->rejectCalls, $this->callMessage);
+        Auditor::record(AuditAction::CallSettingsUpdated, auth()->user(), detail: ['reject' => $this->rejectCalls]);
+
+        $this->callMessage = CallSettings::message();
+
+        $result = app(WahaCalls::class)->applyAll();
+        $this->callsNotice = match (true) {
+            $result['applied'] + $result['unchanged'] + $result['failed'] === 0 => 'Configuração salva. Nenhum canal conectado agora; ela vale quando um canal conectar.',
+            $result['failed'] === 0 => 'Configuração aplicada aos canais.',
+            default => 'Configuração salva; será aplicada aos canais quando o WhatsApp responder.',
+        };
+    }
 
     public function addChannel(): void
     {

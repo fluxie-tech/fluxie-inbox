@@ -103,6 +103,10 @@ rodando contra o mesmo banco. Toda migração precisa funcionar com o código da
 tabela nova é seguro; remover ou renomear coluna, mudar tipo ou reescrever dados que o código velho ainda grava vai em dois
 lançamentos (primeiro o código novo que não usa mais o campo, depois a migração que o remove).
 
+**Atualizando uma instalação existente.** O Coolify não aplica sozinho ao compose já instalado as variáveis novas do serviço
+`waha`: `WHATSAPP_FILES_LIFETIME` (`1209600`), `WAHA_SESSION_CONFIG_IGNORE_STATUS`, `_GROUPS`, `_CHANNELS`, `_BROADCAST`
+(`true`), `WAHA_APPS_ENABLED` (`True`) e `WAHA_APPS_ON` (`calls`). Edite o compose do Service com elas e reinicie o `waha`.
+
 ### Rollback
 
 Quando a versão nova não sobe ou a atualização ficou como "falhou":
