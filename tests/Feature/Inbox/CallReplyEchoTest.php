@@ -50,7 +50,7 @@ class CallReplyEchoTest extends TestCase
         }
 
         if ($mode !== null) {
-            return app(RecoverMessages::class)->ingest($this->channel, $data, IngestMode::RECOVERED);
+            return app(RecoverMessages::class)->ingest($this->channel, $data, IngestMode::from($mode));
         }
 
         $before = (int) Message::query()->max('id');
@@ -122,6 +122,20 @@ class CallReplyEchoTest extends TestCase
         CallSettings::save(true, 'Texto B');
 
         $this->assertNull($this->echo('Texto A', mode: 'recovered'));
+        $this->assertSame(0, Message::query()->count());
+        $this->assertSame(0, Ticket::query()->count());
+    }
+
+    public function test_eco_relido_pela_recuperacao_com_source_app_e_ignorado(): void
+    {
+        $this->assertNull($this->echo(CallSettings::message(), source: 'app', mode: 'recovered'));
+        $this->assertSame(0, Message::query()->count());
+        $this->assertSame(0, Ticket::query()->count());
+    }
+
+    public function test_eco_importado_com_source_app_e_ignorado(): void
+    {
+        $this->assertNull($this->echo(CallSettings::message(), source: 'app', mode: 'imported'));
         $this->assertSame(0, Message::query()->count());
         $this->assertSame(0, Ticket::query()->count());
     }
