@@ -14,6 +14,15 @@ local com mais de 14 dias, e o `IngestMessage` ignora o eco da resposta automát
 
 **Spec:** `docs/superpowers/specs/2026-11-24-waha-midia-e-ligacoes-design.md`
 
+**Resultado do portão (Task 1, 24/11, staging):** a varredura da partida apagou o arquivo de 20 dias; ligação recusada e
+mensagem recebida; `group` sem `message` aceito (201). **Mas `POST` e `PUT /api/apps` reiniciam a sessão** (status
+`STARTING`), e o WAHA aceita criar app para sessão inexistente (`GET` 200, `POST` 201). O eco da resposta automática chega
+como `fromMe` com `source: "api"` e abre ticket "em atendimento" (Task 6 vale). Decisões (dono pediu ajuda; Claude decidiu):
+- Só escrever no WAHA quando o app difere do desejado (comparar `enabled` e `config` do `GET`); igual = nenhuma chamada.
+  Reinício só ao salvar uma mudança real e ao conectar. A tela avisa que salvar reinicia a conexão por alguns segundos.
+- `applyAll()` só para canais `active` com status `WORKING`; os demais recebem ao conectar. Sem caso de 404.
+- Task 6 casa por `source === 'api'` **e** texto em `knownMessages()`.
+
 **Desvio da spec:** a spec diz "no `WahaClient::start()`"; a aplicação ao conectar fica no `ChannelCard`, logo depois de cada
 `start()` (únicos chamadores), para o `WahaClient` não depender de `WahaCalls`, que o usa. O efeito é o mesmo.
 
@@ -33,7 +42,8 @@ local com mais de 14 dias, e o `IngestMessage` ignora o eco da resposta automát
 ## Review Focus
 
 - WAHA fora do ar ao salvar a seção Ligações: a configuração fica salva e a tela avisa que será aplicada depois (Task 4).
-- Canal ativo cuja sessão não existe no WAHA (404) na conferência diária: pulado sem erro, os outros canais seguem (Task 5).
+- Canal ativo fora de `WORKING` na conferência diária: não recebe chamada (o WAHA criaria app órfão); e app já igual não
+  é reescrito, para não reiniciar a sessão todo dia (Task 3).
 - Texto vazio, só espaços ou com caractere de controle com a chave ligada: recusado pela validação (Task 4).
 - Chave desligada: o app `calls` é removido do WAHA e o eco deixa de ser ignorado (Tasks 3 e 6).
 - Mensagem `fromMe` com texto diferente do configurado: continua entrando como hoje (Task 6).
@@ -131,8 +141,11 @@ Nada de código. O controlador conduz, o dono executa o que é no Coolify e no c
     Task 6 usa isto para reconhecer respostas antigas que a recuperação relê do WAHA.
   - `WahaCalls::apply(Channel $channel): void` — lança `WahaRequestException`/`ConnectionException`.
   - `WahaCalls::applyQuietly(Channel $channel): void` — nunca lança; falha vai a `Log::warning`.
-  - `WahaCalls::applyAll(): array{applied: int, skipped: int, failed: int}` — canais com `active = true`; 404 do WAHA conta
-    em `skipped`, outra falha em `failed` (com `Log::warning`), e nunca interrompe os demais.
+  - `WahaCalls::applyAll(): array{applied: int, unchanged: int, failed: int}` — canais com `active = true` e status
+    `WORKING`; `unchanged` quando o app já está como deveria (nenhuma escrita), falha em `failed` (com `Log::warning`), e
+    nunca interrompe os demais.
+  - `WahaCalls::apply(Channel $channel): bool` — `true` quando escreveu no WAHA, `false` quando já estava igual (substitui o
+    `void` acima).
 
 - [ ] **Step 1: Testes que falham** (`config(['services.waha.url' => 'http://waha.test:3000', 'services.waha.key' => 'k'])`,
   canal `waha_session = 'main'`):
@@ -143,13 +156,15 @@ Nada de código. O controlador conduz, o dono executa o que é no Coolify e no c
   - `test_cria_o_app_quando_nao_existe`: `GET */api/apps?session=main` → `[]`, `POST */api/apps` → 201. Assert do POST:
     `app = 'calls'`, `id = 'app_main'`, `session = 'main'`, `config.dm.reject = true`, `config.dm.message` = texto salvo,
     `config.group.reject = true` e sem chave `message` em `group`.
-  - `test_atualiza_o_app_que_ja_existe`: GET devolve `[['id' => 'app_main', 'app' => 'calls']]` → `PUT */api/apps/app_main`
-    com o mesmo corpo; nenhum POST.
+  - `test_atualiza_o_app_que_ja_existe`: GET devolve `[['id' => 'app_main', 'app' => 'calls', 'enabled' => true, 'config' => <texto antigo>]]`
+    → `PUT */api/apps/app_main` com o corpo novo; nenhum POST.
+  - `test_app_igual_nao_escreve`: GET devolve o app com `enabled` true e `config` idêntico ao desejado → só o GET, `apply`
+    devolve `false`.
   - `test_chave_desligada_remove_o_app`: `save(false, ...)`, GET devolve o app → `DELETE */api/apps/app_main`; GET vazio →
     nenhuma chamada além do GET.
   - `test_nunca_reinicia_a_sessao`: em todos os casos acima, `Http::assertNotSent` de `PUT */api/sessions/*`.
-  - `test_apply_all_pula_404_e_continua`: dois canais ativos e um inativo; o GET do primeiro responde 404, o do segundo `[]`
-    → retorno `['applied' => 1, 'skipped' => 1, 'failed' => 0]` e o inativo não é chamado.
+  - `test_apply_all_so_canais_ativos_e_conectados`: um canal `WORKING` sem app, um `WORKING` com app igual, um `STOPPED` e
+    um inativo → `['applied' => 1, 'unchanged' => 1, 'failed' => 0]`; nenhuma chamada com a sessão dos dois últimos.
   - `test_apply_all_conta_falha_e_continua`: primeiro canal 500, segundo ok → `failed` 1, `applied` 1.
   - `test_apply_quietly_nao_lanca`: WAHA 500 → sem exceção, `Log::warning` chamado.
 - [ ] **Step 2:** `php artisan test --filter=WahaCallsTest` → FAIL (classes não existem).
@@ -192,7 +207,8 @@ Nada de código. O controlador conduz, o dono executa o que é no Coolify e no c
   (sem o texto no detalhe); `WahaCalls::applyAll()` e `callsNotice` = "Configuração aplicada aos canais." quando `failed`
   é 0, senão "Configuração salva; será aplicada aos canais quando o WhatsApp responder.". Blade: `flux:switch` "Recusar
   ligações", `flux:textarea` "Mensagem enviada a quem ligar" (desabilitado com a chave desligada), botão "Salvar", texto de
-  ajuda curto dizendo que a ligação para de tocar também no celular, e o `callsNotice` com `role="status"`.
+  ajuda curto dizendo que a ligação para de tocar também no celular e que **salvar uma mudança reinicia a conexão do
+  WhatsApp por alguns segundos**, e o `callsNotice` com `role="status"`.
 - [ ] **Step 4:** Testes afetados (comando do CLAUDE.md; mudança em Blade não aparece nele, então também
   `--filter="ChannelsCallsTest|ChannelsScreenTest"`) → PASS.
 - [ ] **Step 5: Commit** `feat: seção Ligações em Configurações > Canais`
@@ -248,11 +264,12 @@ Só se o portão (Task 1, Step 5) mostrou o eco chegando ao app.
   - `test_texto_antigo_relido_pela_recuperacao_depois_da_troca_e_ignorado`: salvar `A`, depois `B`; ingerir no modo
     `recovered` um eco `fromMe` com texto `A` → nenhum `Ticket` nem `Message`.
 - [ ] **Step 2:** `php artisan test --filter=CallReplyEchoTest` → FAIL.
-- [ ] **Step 3:** No `__invoke`, depois de resolver `$incoming` e antes do contato: se o portão (Task 1, Step 5) achou um
-  campo do payload que marca a resposta do app `calls`, casar por ele (e o teste usa esse campo); senão, `fromMe`,
-  `type === 'text'` e `trim($incoming->body)` presente em `CallSettings::knownMessages()` (comparando com `trim`) →
-  `return null`, só com `CallSettings::rejects()` ligado (com a chave desligada nada é ignorado). Comentário no caso do texto:
-  `shortcut: casa pelo texto; o mesmo texto digitado no celular também é ignorado. Trocar por marca do WAHA se ele passar a identificar a resposta do app calls.`
+  - `test_mesmo_texto_digitado_no_celular_entra_como_hoje`: corpo igual ao configurado, mas `source: 'app'` → gravada.
+- [ ] **Step 3:** No `__invoke`, depois de resolver `$incoming` e antes do contato: `fromMe`, `type === 'text'`, `source`
+  do payload (`$event->payload['payload']['source']`) igual a `'api'`, `CallSettings::rejects()` ligado e
+  `trim($incoming->body)` presente em `CallSettings::knownMessages()` (comparando com `trim`) → `return null`. Os testes dos
+  ecos ignorados levam `source: 'api'`. Comentário:
+  `shortcut: casa pela origem API mais o texto; a mesma frase enviada pelo painel e com eco fora da janela também seria ignorada. Trocar por marca do WAHA se ele passar a identificar a resposta do app calls.`
   Limite aceito, anotar no ledger: o `message.ack` do eco ignorado vira o aviso "Ack descartado" no log a cada ligação
   recusada.
 - [ ] **Step 4:** Testes afetados (comando do CLAUDE.md) → PASS.

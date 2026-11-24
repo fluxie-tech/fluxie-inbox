@@ -30,7 +30,9 @@ responde com uma mensagem, e a chave e o texto são configurados dentro do app.
 ## Anti-objetivos
 
 - Reiniciar a sessão do WhatsApp para aplicar a configuração de ligações (o `PUT /api/sessions/{sessão}` derruba e religa a
-  sessão).
+  sessão). **Revisto em 24/11 depois do teste no staging:** criar ou alterar o app `calls` também reinicia a sessão por
+  alguns segundos. Aceito só quando o admin salva uma mudança real (com aviso na tela) e ao conectar; a conferência diária
+  não escreve quando nada mudou.
 - Usar os endpoints de apagar mensagem do WAHA para limpeza: eles apagam no próprio WhatsApp.
 
 ## Approaches
