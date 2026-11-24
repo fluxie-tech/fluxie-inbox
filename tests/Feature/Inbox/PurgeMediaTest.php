@@ -181,6 +181,35 @@ class PurgeMediaTest extends TestCase
         $this->assertSame(1, TicketEvent::query()->where('type', 'media_purged')->count());
     }
 
+    public function test_expira_mais_de_mil_anexos_sem_copia_numa_rodada(): void
+    {
+        $old = now()->subDays(15);
+        $rows = [];
+        for ($i = 0; $i < 1001; $i++) {
+            $rows[] = [
+                'ticket_id' => $this->ticket->id,
+                'channel_id' => $this->ticket->channel_id,
+                'contact_id' => $this->ticket->contact_id,
+                'wa_message_id' => "BULK{$i}",
+                'direction' => MessageDirection::IN->value,
+                'origin' => MessageOrigin::CONTATO->value,
+                'type' => 'media',
+                'body' => '',
+                'media_ref' => 'abc.jpg',
+                'sent_at' => $old,
+                'created_at' => $old,
+                'updated_at' => $old,
+            ];
+        }
+        foreach (array_chunk($rows, 300) as $chunk) {
+            Message::query()->insert($chunk);
+        }
+
+        $this->artisan('app:purge-media')->assertSuccessful();
+
+        $this->assertSame(0, Message::query()->where('type', 'media')->whereNull('media_purged_at')->count());
+    }
+
     public function test_a_tela_avisa_que_o_arquivo_expirou(): void
     {
         $this->attachment('outbound/2026/07/velho.pdf', 100);

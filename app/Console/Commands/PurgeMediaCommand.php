@@ -31,7 +31,7 @@ class PurgeMediaCommand extends Command
         Message::query()
             ->whereNotNull('media_path')
             ->where('created_at', '<', now()->subDays(self::RETENTION_DAYS))
-            ->each(function (Message $message) use ($disk, &$purged): void {
+            ->eachById(function (Message $message) use ($disk, &$purged): void {
                 if ($message->media_path !== null) {
                     $disk->delete($message->media_path);
                 }
@@ -56,7 +56,7 @@ class PurgeMediaCommand extends Command
             ->whereNull('media_path')
             ->whereNull('media_purged_at')
             ->where('created_at', '<', now()->subDays(self::WAHA_FILES_DAYS))
-            ->each(function (Message $message) use (&$waiting): void {
+            ->eachById(function (Message $message) use (&$waiting): void {
                 $message->update(['media_purged_at' => now()]);
 
                 TicketEvent::create([
