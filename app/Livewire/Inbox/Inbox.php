@@ -3,36 +3,18 @@
 namespace App\Livewire\Inbox;
 
 use App\Actions\Inbox\ClaimTicket;
-use App\Actions\Inbox\CloseTicket;
-use App\Actions\Inbox\MarkTicketSeenByAgent;
-use App\Actions\Inbox\ReassignTicket;
+use App\Actions\Inbox\OpenTicketForAgent;
 use App\Actions\Inbox\TakeoverTicket;
-use App\Actions\Inbox\TransferTicket;
-use App\Enums\ClosedReason;
-use App\Enums\CloseOutcome;
-use App\Enums\SectorStatus;
-use App\Enums\TicketStatus;
-use App\Jobs\MarkTicketSeenJob;
 use App\Livewire\Inbox\Concerns\ActsOnMessages;
 use App\Livewire\Inbox\Concerns\ComposesMessages;
 use App\Livewire\Inbox\Concerns\TakesNotes;
-use App\Models\Channel;
-use App\Models\Message;
-use App\Models\Sector;
-use App\Models\Tag;
 use App\Models\Ticket;
 use App\Models\User;
-use App\Services\Inbox\ClientPresence;
-use App\Services\Inbox\ConversationHandoff;
-use App\Services\Inbox\QueueOverview;
 use App\Services\Inbox\ResendTicketMessage;
-use App\Services\Inbox\TicketTextSearch;
-use App\Support\TicketQueue;
+use App\Services\Inbox\TicketLookup;
+use App\Services\Inbox\TicketPanel;
+use App\Services\Inbox\TicketQueueQuery;
 use Illuminate\Contracts\View\View;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
-use Illuminate\Support\Collection;
-use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Title;
@@ -46,19 +28,6 @@ class Inbox extends Component
     use ActsOnMessages;
     use ComposesMessages;
     use TakesNotes;
-
-    /** Prévia da lista: o texto ou, quando não há, o nome do tipo de conteúdo. */
-    private const PREVIEW_SQL = "case when revoked_at is not null then 'Apagada · ' else '' end || "
-        ."case when type = 'location' then 'Localização' when type = 'contact' then 'Contato' "
-        ."when body <> '' then body when type = 'view_once' then 'Visualização única' "
-        ."when media_mime = 'image/webp' then 'Figurinha' when media_mime like 'image/%' then 'Foto' "
-        ."when media_mime like 'audio/%' then 'Áudio' when media_mime like 'video/%' then 'Vídeo' "
-        ."when type = 'media' then 'Arquivo' else '['||type||']' end";
-
-    /** A aba "Encerrados" mostra só o recente; a busca completa fica no Histórico. */
-    private const CLOSED_TAB_DAYS = 7;
-
-    private const CLOSED_TAB_LIMIT = 50;
 
     private const ALREADY_CLOSED = 'Este ticket já foi encerrado por outra pessoa.';
 
@@ -97,11 +66,10 @@ class Inbox extends Component
     {
         $id = request()->integer('ticket');
 
-        if ($id > 0 && Ticket::query()->readableBy($this->user())->whereKey($id)->exists()) {
+        if ($id > 0 && $this->lookup()->canSee($this->user(), $id)) {
             $this->select($id);
 
-            // Vindo da janela "Nova conversa" com um ticket que já existia: o aviso e, se pode responder, o texto digitado.
-            $handoff = ConversationHandoff::pull($this->user(), Ticket::query()->findOrFail($id));
+            $handoff = $this->lookup()->handoff($this->user(), $id);
             $this->notice = $handoff['notice'];
             $this->draft = $handoff['draft'] ?? $this->draft;
         }
@@ -112,10 +80,7 @@ class Inbox extends Component
         $ticket = Ticket::findOrFail($ticketId);
         $this->authorize('view', $ticket);
 
-        if ($ticket->status !== TicketStatus::ENCERRADO) {
-            MarkTicketSeenJob::dispatch($ticket->id);
-            app(MarkTicketSeenByAgent::class)($ticket, $this->user());
-        }
+        app(OpenTicketForAgent::class)($ticket, $this->user());
 
         if ($this->ticketId !== $ticketId) {
             // Abrir outro ticket (um encerrado, por exemplo) não pode fazer o atual sumir sem volta.
@@ -137,7 +102,7 @@ class Inbox extends Component
         $id = $this->previousTicketId;
         $this->previousTicketId = null;
 
-        if ($id !== null && Ticket::query()->readableBy($this->user())->whereKey($id)->exists()) {
+        if ($id !== null && $this->lookup()->canSee($this->user(), $id)) {
             $this->select($id);
             $this->previousTicketId = null;
         }
@@ -188,16 +153,9 @@ class Inbox extends Component
         $ticket = $this->selected();
         $this->authorize('transfer', $ticket);
 
-        $this->validate([
-            'transferSectorId' => ['required', 'integer', Rule::exists('sectors', 'id')->whereIn('status', $this->receivingStatuses())],
-            'transferNote' => ['nullable', 'string', 'max:500'],
-        ], [
-            'transferSectorId.required' => 'Escolha o setor de destino.',
-            'transferSectorId.exists' => 'Esse setor não recebe tickets.',
-            'transferNote.max' => 'A nota passa de 500 caracteres.',
-        ]);
+        $this->validate(TicketPanel::transferRules(), TicketPanel::TRANSFER_MESSAGES);
 
-        $moved = (new TransferTicket)($ticket, $this->user(), Sector::findOrFail($this->transferSectorId), $this->transferNote);
+        $moved = $this->ticketPanel()->transfer($ticket, $this->user(), (int) $this->transferSectorId, $this->transferNote);
 
         $this->notice = $moved ? null : 'Não foi possível transferir: o ticket já está nesse setor ou foi encerrado.';
         $this->closePanel();
@@ -208,12 +166,9 @@ class Inbox extends Component
         $ticket = $this->selected();
         $this->authorize('reassign', $ticket);
 
-        $this->validate(
-            ['reassignUserId' => ['required', 'integer', Rule::exists('users', 'id')->where('active', true)]],
-            ['reassignUserId.required' => 'Escolha quem fica com o ticket.'],
-        );
+        $this->validate(TicketPanel::reassignRules(), TicketPanel::REASSIGN_MESSAGES);
 
-        $reassigned = (new ReassignTicket)($ticket, $this->user(), User::findOrFail($this->reassignUserId));
+        $reassigned = $this->ticketPanel()->reassign($ticket, $this->user(), (int) $this->reassignUserId);
 
         $this->notice = $reassigned ? null : 'Não foi possível reatribuir: essa pessoa não atende este setor ou já está com o ticket.';
         $this->closePanel();
@@ -224,7 +179,7 @@ class Inbox extends Component
         $ticket = $this->selected();
 
         // Outra pessoa encerrou enquanto o painel estava aberto: aviso, não erro 403.
-        if ($ticket->status === TicketStatus::ENCERRADO) {
+        if ($this->ticketPanel()->alreadyClosed($ticket)) {
             $this->notice = self::ALREADY_CLOSED;
             $this->closePanel();
 
@@ -234,18 +189,9 @@ class Inbox extends Component
         $this->authorize('close', $ticket);
 
         $this->closeSummary = trim($this->closeSummary);
-        $this->validate([
-            'closeOutcome' => ['required', Rule::enum(CloseOutcome::class)],
-            'closeSummary' => ['required', 'string', 'min:3', 'max:500'],
-        ], [
-            'closeOutcome.required' => 'Escolha o motivo do encerramento.',
-            'closeOutcome.enum' => 'Escolha o motivo do encerramento.',
-            'closeSummary.required' => 'Escreva um resumo do atendimento.',
-            'closeSummary.min' => 'O resumo precisa de ao menos 3 caracteres.',
-            'closeSummary.max' => 'O resumo passa de 500 caracteres.',
-        ]);
+        $this->validate(TicketPanel::closeRules(), TicketPanel::CLOSE_MESSAGES);
 
-        $closed = (new CloseTicket)($ticket, $this->user(), ClosedReason::MANUAL, CloseOutcome::from($this->closeOutcome), $this->closeSummary);
+        $closed = $this->ticketPanel()->close($ticket, $this->user(), $this->closeOutcome, $this->closeSummary);
 
         $this->notice = $closed ? null : self::ALREADY_CLOSED;
         $this->closePanel();
@@ -260,9 +206,7 @@ class Inbox extends Component
         $ticket = $this->selected();
         $this->authorize('reply', $ticket);
 
-        $message = Message::query()->where('ticket_id', $ticket->id)->findOrFail($messageId);
-
-        $result = (new ResendTicketMessage)($message, $this->user(), $confirmed);
+        $result = (new ResendTicketMessage)->forTicket($ticket, $messageId, $this->user(), $confirmed);
 
         $this->notice = match ($result) {
             ResendTicketMessage::CONFIRM => 'Confirme antes de reenviar: a mensagem pode já ter sido enviada.',
@@ -286,14 +230,6 @@ class Inbox extends Component
     #[On('tags-changed')]
     public function refresh(): void {}
 
-    /** Só o protocolo, e só se o usuário ainda pode ver o ticket (ele pode ter sido transferido enquanto isso). */
-    private function previousTicket(User $user): ?Ticket
-    {
-        return $this->previousTicketId === null
-            ? null
-            : Ticket::query()->readableBy($user)->select(['id', 'protocol'])->find($this->previousTicketId);
-    }
-
     private function user(): User
     {
         $user = auth()->user();
@@ -302,127 +238,43 @@ class Inbox extends Component
         return $user;
     }
 
+    private function lookup(): TicketLookup
+    {
+        return app(TicketLookup::class);
+    }
+
+    private function ticketPanel(): TicketPanel
+    {
+        return app(TicketPanel::class);
+    }
+
     /**
      * O ticket aberto na tela, desde que o usuário ainda possa vê-lo (outro atendente pode ter assumido).
      */
     private function selected(): Ticket
     {
-        return Ticket::query()->readableBy($this->user())->findOrFail($this->ticketId);
-    }
-
-    private function find(): ?Ticket
-    {
-        return $this->ticketId === null
-            ? null
-            : Ticket::query()->readableBy($this->user())->with(['contact', 'channel', 'assignee', 'sector', 'tags'])->find($this->ticketId);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function receivingStatuses(): array
-    {
-        return array_values(array_map(
-            fn (SectorStatus $status): string => $status->value,
-            array_filter(SectorStatus::cases(), fn (SectorStatus $status): bool => $status->receivesTickets()),
-        ));
-    }
-
-    /**
-     * Quem pode receber o ticket numa reatribuição: usuários ativos do setor dele (ou todos, se não tem setor).
-     *
-     * @return Collection<int, User>
-     */
-    private function reassignCandidates(Ticket $ticket): Collection
-    {
-        return User::query()
-            ->where('active', true)
-            ->when($ticket->sector_id !== null, fn (Builder $q) => $q->whereHas('sectors', fn (Builder $s) => $s->whereKey($ticket->sector_id)))
-            ->when($ticket->assigned_user_id !== null, fn (Builder $q) => $q->whereKeyNot($ticket->assigned_user_id))
-            ->orderBy('name')
-            ->get();
-    }
-
-    /**
-     * Os encerrados recentes que o usuário pode ver, para a aba "Encerrados"; vazio nas outras abas.
-     *
-     * @return EloquentCollection<int, Ticket>
-     */
-    private function recentlyClosed(User $user): EloquentCollection
-    {
-        if ($this->tab !== 'encerrados') {
-            return new EloquentCollection;
-        }
-
-        return Ticket::query()->inHistoryOf($user)->where('closed_at', '>=', now()->subDays(self::CLOSED_TAB_DAYS))
-            ->where(fn (Builder $q) => $q->whereNull('closed_reason')->orWhere('closed_reason', '<>', ClosedReason::IMPORTADO->value))
-            ->tap(fn (Builder $q) => TicketTextSearch::apply($q, $this->search))
-            ->with('contact')->orderByDesc('closed_at')->orderByDesc('id')->limit(self::CLOSED_TAB_LIMIT)->get();
-    }
-
-    /**
-     * @param  EloquentCollection<int, Ticket>  $list
-     * @return array<int, string>
-     */
-    private function clientPresence(EloquentCollection $list, ?Ticket $ticket): array
-    {
-        $ids = [...$list->modelKeys(), ...($ticket === null ? [] : [$ticket->id])];
-
-        return app(ClientPresence::class)->states(array_values(array_unique(array_map(intval(...), $ids))));
+        return $this->lookup()->selected($this->user(), $this->ticketId);
     }
 
     public function render(): View
     {
         $user = $this->user();
-        $ticket = $this->find();
-
-        $list = Ticket::query()
-            ->open()
-            ->visibleTo($user)
-            ->with(['contact.tags', 'channel', 'tags', 'assignee', 'sector'])
-            ->tap(TicketQueue::withUnread(...))
-            ->addSelect(['preview' => Message::query()
-                ->selectRaw(self::PREVIEW_SQL)->whereColumn('ticket_id', 'tickets.id')->orderByDesc('sent_at')->orderByDesc('id')->limit(1)])
-            ->when($this->tab === 'pendentes', fn (Builder $q) => $q->where('status', TicketStatus::PENDENTE->value))
-            ->when($this->tab === 'aguardando', fn (Builder $q) => $q->where('status', TicketStatus::AGUARDANDO->value))
-            ->when($this->tab === 'meus', fn (Builder $q) => $q->where('assigned_user_id', $user->id))
-            ->when($this->tagId !== null, fn (Builder $q) => TicketQueue::withTag($q, (int) $this->tagId))
-            ->tap(fn (Builder $q) => TicketTextSearch::apply($q, $this->search))
-            ->orderBy('last_inbound_at')
-            ->get();
-
-        $counts = [
-            'pendentes' => Ticket::query()->open()->visibleTo($user)->where('status', TicketStatus::PENDENTE->value)->count(),
-            'aguardando' => Ticket::query()->open()->visibleTo($user)->where('status', TicketStatus::AGUARDANDO->value)->count(),
-            'meus' => Ticket::query()->open()->where('assigned_user_id', $user->id)->count(),
-        ];
+        $ticket = $this->lookup()->detailed($user, $this->ticketId);
+        $panel = $this->ticketPanel();
 
         return view('livewire.inbox.inbox', [
-            'contactTags' => Tag::sortedByName(Tag::query()->ofContact()->get()),
-            'ticketTags' => Tag::sortedByName(Tag::query()->ofTicket()->get()),
-            'pending' => $list->where('status', TicketStatus::PENDENTE),
-            'waiting' => $list->where('status', TicketStatus::AGUARDANDO),
-            'active' => $list->where('status', TicketStatus::EM_ATENDIMENTO),
-            'closed' => $this->recentlyClosed($user),
-            // "Digitando…" do cliente guardado no Redis: quem abre a tela no meio da digitação já o vê (os avisos seguintes vêm pelo Reverb).
-            'clientPresence' => $this->clientPresence($list, $ticket),
-            'tabCounts' => $counts,
-            // Sem ticket aberto a coluna do meio mostra o resumo do dia (ver `summary`).
-            'summary' => QueueOverview::summary($ticket, $user, $counts),
-            'showSector' => QueueOverview::showSector($list),
-            // O selo do número só ajuda quando há mais de um número ativo.
-            'showChannel' => Channel::query()->where('active', true)->count() >= 2,
+            ...app(TicketQueueQuery::class)->snapshot($user, $this->tab, $this->tagId, $this->search, $ticket),
             'ticket' => $ticket,
             'replyTo' => $this->replyBar($ticket?->id),
-            'previous' => $this->previousTicket($user),
+            'previous' => $this->lookup()->previous($user, $this->previousTicketId),
             'canClaim' => $ticket !== null && $user->can('claim', $ticket),
             'canClose' => $ticket !== null && $user->can('close', $ticket),
             'canReply' => $ticket !== null && $user->can('reply', $ticket),
             'canTransfer' => $ticket !== null && $user->can('transfer', $ticket),
             'canReassign' => $ticket !== null && $user->can('reassign', $ticket),
             'canTakeover' => $ticket !== null && $user->can('takeover', $ticket),
-            'sectors' => $this->panel === 'transfer' ? Sector::query()->receivingTickets()->orderBy('menu_order')->get() : collect(),
-            'candidates' => $ticket !== null && $this->panel === 'reassign' ? $this->reassignCandidates($ticket) : collect(),
+            'sectors' => $this->panel === 'transfer' ? $panel->sectors() : collect(),
+            'candidates' => $ticket !== null && $this->panel === 'reassign' ? $panel->candidates($ticket) : collect(),
         ]);
     }
 }

@@ -7,6 +7,7 @@ use App\Enums\MessageDirection;
 use App\Enums\MessageOrigin;
 use App\Jobs\SendTicketMessageJob;
 use App\Models\Message;
+use App\Models\Ticket;
 use App\Models\User;
 
 /**
@@ -36,6 +37,12 @@ class ResendTicketMessage
             && $mine;
 
         return $eligible ? SendFailure::resend($message->failure_code) : self::NONE;
+    }
+
+    /** A mensagem tem de ser do ticket (o id vem do navegador); o resto é o `__invoke`. */
+    public function forTicket(Ticket $ticket, int $messageId, User $by, bool $confirmed): string
+    {
+        return $this(Message::query()->where('ticket_id', $ticket->id)->findOrFail($messageId), $by, $confirmed);
     }
 
     /**
