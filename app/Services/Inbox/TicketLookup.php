@@ -2,6 +2,7 @@
 
 namespace App\Services\Inbox;
 
+use App\Enums\TicketStatus;
 use App\Models\Ticket;
 use App\Models\User;
 
@@ -42,5 +43,31 @@ final class TicketLookup
     public function handoff(User $user, int $ticketId): array
     {
         return ConversationHandoff::pull($user, Ticket::query()->findOrFail($ticketId));
+    }
+
+    /** O ticket de um aviso de presença: nasce da conversa do gravador, não da seleção atual (ver `ComposesMessages`). */
+    public function visibleOrFail(User $user, int $ticketId): Ticket
+    {
+        return Ticket::query()->visibleTo($user)->findOrFail($ticketId);
+    }
+
+    /**
+     * Dos ids com rascunho guardado no navegador, os de ticket encerrado que o usuário ainda vê (o navegador apaga esses
+     * rascunhos). Só inteiros positivos, até 200: o id vem do navegador.
+     *
+     * @param  array<mixed>  $ids
+     * @return list<int>
+     */
+    public function closedAmong(User $user, array $ids): array
+    {
+        $valid = array_values(array_filter(array_slice($ids, 0, 200), fn ($id): bool => is_int($id) && $id > 0));
+
+        $closed = Ticket::query()->readableBy($user)
+            ->whereIn('id', $valid)
+            ->where('status', TicketStatus::ENCERRADO->value)
+            ->get(['id'])
+            ->map(fn (Ticket $ticket): int => $ticket->id);
+
+        return array_values($closed->all());
     }
 }
