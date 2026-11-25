@@ -137,6 +137,16 @@ class WahaClientTest extends TestCase
         $client->deleteSession();
     }
 
+    public function test_qr_for_channel_usa_a_sessao_do_canal(): void
+    {
+        Http::fake(['*' => Http::response(['value' => 'qr-texto'])]);
+        $channel = Channel::factory()->create(['waha_session' => 'sessao-y']);
+
+        $this->assertSame('qr-texto', WahaQr::forChannel($channel)->raw());
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/api/sessao-y/auth/qr'));
+    }
+
     public function test_qr_raw_devolve_o_valor_e_nulo_quando_falha(): void
     {
         Http::fake(['*/api/main/auth/qr*' => Http::sequence()->push(['value' => 'abc,def'], 200)->push([], 422)->push(['outro' => 'x'], 200)]);
