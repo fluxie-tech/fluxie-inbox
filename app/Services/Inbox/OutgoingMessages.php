@@ -34,7 +34,7 @@ class OutgoingMessages
     }
 
     /**
-     * Grava a linha de saída (texto ou anexo) e avisa a tela. O envio em si é de `deliver`.
+     * Grava a linha de saída (texto ou anexo) e avisa a tela. O envio em si é de `SendTicketMessage::deliver`.
      *
      * @param  array<string, mixed>  $extra  colunas de mídia (`media_mime`, `media_name`, `media_size`, `local_path`)
      */

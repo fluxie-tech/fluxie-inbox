@@ -21,8 +21,11 @@ class OpenTicketByAgent
 {
     public function __construct(private readonly OutgoingMessages $messages) {}
 
-    /** Roda dentro da transação de quem chama. */
-    /** @return array{ticket: Ticket, message: Message} */
+    /**
+     * Roda dentro da transação de quem chama.
+     *
+     * @return array{ticket: Ticket, message: Message}
+     */
     public function __invoke(User $user, Contact $contact, Channel $channel, Sector $sector, string $text): array
     {
         $ticket = Ticket::create([

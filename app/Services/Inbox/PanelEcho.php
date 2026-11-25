@@ -56,7 +56,7 @@ class PanelEcho
             'failure_reason' => null,
             'failure_code' => null,
         ]);
-        // O eco da resposta automática não é trabalho humano (ver `SendTicketMessage::deliver`).
+        // O eco da resposta automática não é trabalho humano (ver `OutboundStatus::sent`).
         if ($pending->origin !== MessageOrigin::BOT) {
             $ticket->recordOutbound($incoming->sentAt);
         }
