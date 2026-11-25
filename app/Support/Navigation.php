@@ -32,7 +32,7 @@ class Navigation
             // Supervisor e admin mexem nos workflows toda semana: fica na barra, não dentro de Configuração. A barra é plana (a seção só separa
             // Configuração do resto), então `$work` ou `$follow` não muda o que aparece; a ordem do array é a ordem da barra.
             $item('Automação', 'automacao', 'supervisor', $work, '', 'cpu-chip', 'automacao*'),
-            $item('Auditoria', 'auditoria', 'admin', $follow, '', 'shield-check', 'auditoria*'),
+            $item('Auditoria', 'auditoria', 'supervisor', $follow, '', 'shield-check', 'auditoria*'),
             $item('Setores', 'configuracoes.setores', 'admin', $config, 'Atendimento', 'squares-2x2'),
             $item('Horário e SLA', 'configuracoes.horario', 'admin', $config, 'Atendimento', 'clock'),
             $item('Respostas rápidas', 'configuracoes.respostas', 'supervisor', $config, 'Atendimento', 'bolt'),

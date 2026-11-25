@@ -58,10 +58,10 @@ Route::middleware(['auth', 'can:supervisor'])->group(function () {
     Route::get('configuracoes/etiquetas', Tags::class)->name('configuracoes.etiquetas');
     Route::get('automacao', AutomationIndex::class)->name('automacao');
     Route::get('automacao/{workflow}', AutomationEditor::class)->name('automacao.editar');
+    Route::get('auditoria', AuditIndex::class)->name('auditoria');
 });
 
 Route::middleware(['auth', 'can:admin'])->group(function () {
-    Route::get('auditoria', AuditIndex::class)->name('auditoria');
     Route::get('auditoria/sistema', AuditSystemLog::class)->name('auditoria.sistema');
     Route::get('configuracoes/canais', Channels::class)->name('configuracoes.canais');
     Route::get('configuracoes/horario', BusinessHoursPage::class)->name('configuracoes.horario');

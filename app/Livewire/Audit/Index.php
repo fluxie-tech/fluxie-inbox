@@ -33,7 +33,7 @@ class Index extends Component
 
     public function mount(): void
     {
-        $this->authorize('admin');
+        $this->authorize('supervisor');
     }
 
     public function updatedPeriod(): void

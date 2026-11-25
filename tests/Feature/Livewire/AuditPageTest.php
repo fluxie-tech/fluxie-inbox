@@ -10,6 +10,7 @@ use App\Models\Sector;
 use App\Models\Ticket;
 use App\Models\TicketEvent;
 use App\Models\User;
+use App\Support\Navigation;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Features\SupportTesting\Testable;
@@ -40,11 +41,25 @@ class AuditPageTest extends TestCase
         return $event;
     }
 
-    public function test_so_admin_entra(): void
+    public function test_supervisor_e_admin_entram_atendente_nao(): void
     {
-        $this->actingAs(User::factory()->create(['role' => UserRole::SUPERVISOR]))->get('/auditoria')->assertForbidden();
         $this->actingAs(User::factory()->create(['role' => UserRole::ATENDENTE]))->get('/auditoria')->assertForbidden();
+        $this->actingAs(User::factory()->create(['role' => UserRole::SUPERVISOR]))->get('/auditoria')->assertOk();
         $this->actingAs(User::factory()->create(['role' => UserRole::ADMIN]))->get('/auditoria')->assertOk();
+    }
+
+    public function test_supervisor_nao_ve_a_aba_sistema_e_admin_ve(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => UserRole::SUPERVISOR]))->get('/auditoria')
+            ->assertDontSee('aria-label="Tipo de auditoria"', false)->assertDontSee(route('auditoria.sistema'));
+        $this->actingAs(User::factory()->create(['role' => UserRole::ADMIN]))->get('/auditoria')
+            ->assertSee(route('auditoria.sistema'));
+    }
+
+    public function test_supervisor_ve_o_item_auditoria_no_menu(): void
+    {
+        $supervisor = User::factory()->create(['role' => UserRole::SUPERVISOR]);
+        $this->assertContains('auditoria', array_map(fn ($item) => $item->route, (new Navigation)->visible($supervisor)));
     }
 
     public function test_lista_com_protocolo_usuario_acao_e_detalhe_do_mais_novo_ao_mais_velho(): void
