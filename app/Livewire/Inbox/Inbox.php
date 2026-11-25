@@ -69,6 +69,7 @@ class Inbox extends Component
         if ($id > 0 && $this->lookup()->canSee($this->user(), $id)) {
             $this->select($id);
 
+            // Vindo da janela "Nova conversa" com um ticket que já existia: o aviso e, se pode responder, o texto digitado.
             $handoff = $this->lookup()->handoff($this->user(), $id);
             $this->notice = $handoff['notice'];
             $this->draft = $handoff['draft'] ?? $this->draft;

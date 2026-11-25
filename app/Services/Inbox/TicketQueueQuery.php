@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Support\TicketQueue;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Collection;
 
 /** Tudo o que a Fila lê do banco para se desenhar: a lista aberta, as abas, os encerrados recentes, a presença do cliente e as etiquetas. */
 final class TicketQueueQuery
@@ -30,10 +31,9 @@ final class TicketQueueQuery
     private const CLOSED_TAB_LIMIT = 50;
 
     /**
-     * As chaves que a view da Fila espera (contactTags, ticketTags, pending, waiting, active, closed, clientPresence, tabCounts,
-     * summary, showSector, showChannel). A lista aberta é lida uma vez e reaproveitada pela presença e pelo setor.
+     * A lista aberta é lida uma vez e reaproveitada pela presença e pelo setor.
      *
-     * @return array<string, mixed>
+     * @return array{contactTags: Collection<int, Tag>, ticketTags: Collection<int, Tag>, pending: EloquentCollection<int, Ticket>, waiting: EloquentCollection<int, Ticket>, active: EloquentCollection<int, Ticket>, closed: EloquentCollection<int, Ticket>, clientPresence: array<int, string>, tabCounts: array{pendentes: int, aguardando: int, meus: int}, summary: array{waiting: int, mine: int, nearest: ?Ticket}|null, showSector: bool, showChannel: bool}
      */
     public function snapshot(User $user, string $tab, ?int $tagId, string $search, ?Ticket $ticket): array
     {
