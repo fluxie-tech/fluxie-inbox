@@ -64,13 +64,13 @@ class StartConversation
                 throw new ConversationNotStarted(self::SECTOR_REFUSED);
             }
 
-            return ['ticket' => null, 'message' => ($this->open)($user, $contact, $channel, $sector, $text)];
+            return ($this->open)($user, $contact, $channel, $sector, $text);
         });
 
         if ($made['message'] instanceof Message) {
-            $this->open->announce($made['message'], $contact, $channel);
+            $this->open->announce($made['ticket'], $made['message'], $contact, $channel);
 
-            return ['ticket' => $made['message']->ticket()->firstOrFail(), 'created' => true];
+            return ['ticket' => $made['ticket'], 'created' => true];
         }
 
         return ['ticket' => $made['ticket'], 'created' => false];

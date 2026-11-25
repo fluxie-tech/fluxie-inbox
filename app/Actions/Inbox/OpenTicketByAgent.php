@@ -22,7 +22,8 @@ class OpenTicketByAgent
     public function __construct(private readonly SendTicketMessage $messages) {}
 
     /** Roda dentro da transação de quem chama. */
-    public function __invoke(User $user, Contact $contact, Channel $channel, Sector $sector, string $text): Message
+    /** @return array{ticket: Ticket, message: Message} */
+    public function __invoke(User $user, Contact $contact, Channel $channel, Sector $sector, string $text): array
     {
         $ticket = Ticket::create([
             'contact_id' => $contact->id,
@@ -40,14 +41,14 @@ class OpenTicketByAgent
             'payload' => ['channel_id' => $channel->id, 'sector_id' => $sector->id],
         ]);
 
-        return $this->messages->create($ticket, $user, Signature::apply($text, $user, $sector));
+        return ['ticket' => $ticket, 'message' => $this->messages->create($ticket, $user, Signature::apply($text, $user, $sector))];
     }
 
     /** Depois do commit: foto do contato, envio e atualização da tela. */
-    public function announce(Message $message, Contact $contact, Channel $channel): void
+    public function announce(Ticket $ticket, Message $message, Contact $contact, Channel $channel): void
     {
         app(SyncContactPhoto::class)->queueFor($contact, $channel);
         SendTicketMessageJob::dispatch($message->id);
-        TicketUpdated::dispatch($message->ticket()->firstOrFail());
+        TicketUpdated::dispatch($ticket);
     }
 }
