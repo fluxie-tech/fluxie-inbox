@@ -2,25 +2,16 @@
 
 namespace App\Actions\Inbox;
 
-use App\Enums\TicketStatus;
-use App\Events\TicketUpdated;
-use App\Jobs\SendTicketMessageJob;
 use App\Models\Channel;
 use App\Models\Contact;
 use App\Models\Message;
 use App\Models\Sector;
 use App\Models\Ticket;
-use App\Models\TicketEvent;
 use App\Models\User;
 use App\Services\Inbox\ConversationNotStarted;
-use App\Services\Inbox\SendTicketMessage;
-use App\Services\Inbox\Signature;
-use App\Services\Inbox\SyncContactPhoto;
-use App\Services\Waha\WahaClient;
-use App\Services\Waha\WahaContacts;
-use App\Services\Waha\WahaRequestException;
+use App\Services\Inbox\ConversationPace;
+use App\Services\Inbox\WhatsAppNumber;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * O atendente começa uma conversa: a única porta em que o ticket nasce de uma mensagem nossa. Toda recusa acontece antes de
@@ -30,14 +21,13 @@ class StartConversation
 {
     public const TEXT_LIMIT = 4096;
 
-    /** Segundos mínimos entre duas conversas iniciadas pelo app no mesmo canal, e o teto por contato em uma hora. */
-    private const CHANNEL_GAP_SECONDS = 30;
-
-    private const CONTACT_PER_HOUR = 4;
-
     private const SECTOR_REFUSED = 'Escolha um setor que receba tickets e que você atenda.';
 
-    public function __construct(private readonly SendTicketMessage $messages) {}
+    public function __construct(
+        private readonly OpenTicketByAgent $open,
+        private readonly ConversationPace $pace,
+        private readonly WhatsAppNumber $number,
+    ) {}
 
     /**
      * @return array{ticket: Ticket, created: bool} `created` falso quando já havia ticket aberto do contato no canal (nada é enviado)
@@ -55,8 +45,8 @@ class StartConversation
             return ['ticket' => $open, 'created' => false];
         }
 
-        $this->assertHasWhatsApp((string) $contact->wa_id, $channel);
-        $this->reservePace($contact, $channel);
+        $this->number->assertExists((string) $contact->wa_id, $channel);
+        $this->pace->reserve($contact, $channel);
 
         $made = DB::transaction(function () use ($user, $contact, $channel, $sector, $text): array {
             DB::select('select pg_advisory_xact_lock(hashtext(?))', ['ticket:'.$contact->id.':'.$channel->id]);
@@ -69,37 +59,21 @@ class StartConversation
 
             // O setor veio do guard, antes da transação: pode ter sido apagado ou desativado desde então. Nada foi enviado, então o ritmo volta.
             if (Sector::lockForReceiving($sector->id) === null) {
-                $this->releasePace($contact, $channel);
+                $this->pace->release($contact, $channel);
 
                 throw new ConversationNotStarted(self::SECTOR_REFUSED);
             }
 
-            $ticket = Ticket::create([
-                'contact_id' => $contact->id,
-                'channel_id' => $channel->id,
-                'sector_id' => $sector->id,
-                'assigned_user_id' => $user->id,
-                'status' => TicketStatus::EM_ATENDIMENTO,
-                'opened_at' => now(),
-            ]);
-
-            TicketEvent::create([
-                'ticket_id' => $ticket->id,
-                'type' => 'opened_by_agent',
-                'actor_user_id' => $user->id,
-                'payload' => ['channel_id' => $channel->id, 'sector_id' => $sector->id],
-            ]);
-
-            return ['ticket' => $ticket, 'message' => $this->messages->create($ticket, $user, Signature::apply($text, $user, $sector))];
+            return ['ticket' => null, 'message' => ($this->open)($user, $contact, $channel, $sector, $text)];
         });
 
         if ($made['message'] instanceof Message) {
-            app(SyncContactPhoto::class)->queueFor($contact, $channel);
-            SendTicketMessageJob::dispatch($made['message']->id);
-            TicketUpdated::dispatch($made['ticket']);
+            $this->open->announce($made['message'], $contact, $channel);
+
+            return ['ticket' => $made['message']->ticket()->firstOrFail(), 'created' => true];
         }
 
-        return ['ticket' => $made['ticket'], 'created' => $made['message'] instanceof Message];
+        return ['ticket' => $made['ticket'], 'created' => false];
     }
 
     /** @throws ConversationNotStarted */
@@ -123,56 +97,5 @@ class StartConversation
     private function openTicket(Contact $contact, Channel $channel): ?Ticket
     {
         return Ticket::query()->open()->where('contact_id', $contact->id)->where('channel_id', $channel->id)->first();
-    }
-
-    /**
-     * Público para a janela conferir um telefone novo antes de cadastrar o contato (número sem WhatsApp não vira contato).
-     *
-     * @throws ConversationNotStarted
-     */
-    public function assertHasWhatsApp(string $waId, Channel $channel): void
-    {
-        try {
-            $exists = (new WahaContacts(new WahaClient($channel)))->numberExists($waId);
-        } catch (WahaRequestException) {
-            throw new ConversationNotStarted('Não foi possível confirmar o número agora. Tente de novo em instantes.');
-        }
-
-        if (! $exists) {
-            throw new ConversationNotStarted('Este número não tem WhatsApp.');
-        }
-    }
-
-    /** @throws ConversationNotStarted */
-    private function reservePace(Contact $contact, Channel $channel): void
-    {
-        $channelKey = $this->channelKey($channel);
-        $contactKey = $this->contactKey($contact);
-
-        foreach ([[$channelKey, 1], [$contactKey, self::CONTACT_PER_HOUR]] as [$key, $max]) {
-            if (RateLimiter::tooManyAttempts($key, $max)) {
-                throw new ConversationNotStarted('Aguarde '.RateLimiter::availableIn($key).' s para iniciar outra conversa '.($key === $channelKey ? 'neste canal.' : 'com este contato.'));
-            }
-        }
-
-        RateLimiter::hit($channelKey, self::CHANNEL_GAP_SECONDS);
-        RateLimiter::hit($contactKey, 3600);
-    }
-
-    private function releasePace(Contact $contact, Channel $channel): void
-    {
-        // Só o que esta chamada reservou: `clear` apagaria também a reserva de outra conversa feita no mesmo canal na janela.
-        RateLimiter::decrement($this->channelKey($channel), self::CHANNEL_GAP_SECONDS);
-        RateLimiter::decrement($this->contactKey($contact), 3600);
-    }
-
-    private function channelKey(Channel $channel): string
-    {
-        return 'start-conversation:channel:'.$channel->id;
-    }
-
-    private function contactKey(Contact $contact): string
-    {
-        return 'start-conversation:contact:'.$contact->id;
     }
 }

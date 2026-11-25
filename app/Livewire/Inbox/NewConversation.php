@@ -11,6 +11,7 @@ use App\Models\Ticket;
 use App\Models\User;
 use App\Services\Inbox\ConversationHandoff;
 use App\Services\Inbox\ConversationNotStarted;
+use App\Services\Inbox\WhatsAppNumber;
 use App\Support\PhoneFormat;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
@@ -80,7 +81,7 @@ class NewConversation extends Component
         $this->contactId = null;
     }
 
-    public function submit(StartConversation $start, CreateContact $createContact): void
+    public function submit(StartConversation $start, CreateContact $createContact, WhatsAppNumber $number): void
     {
         $this->failure = null;
         $this->resetErrorBag();
@@ -94,7 +95,7 @@ class NewConversation extends Component
         $sector = Sector::query()->findOrFail($this->sectorId);
 
         try {
-            $contact = $this->contactId !== null ? Contact::query()->findOrFail($this->contactId) : $this->newContact($start, $createContact, $channel);
+            $contact = $this->contactId !== null ? Contact::query()->findOrFail($this->contactId) : $this->newContact($number, $createContact, $channel);
 
             if ($contact === null) {
                 return;
@@ -127,7 +128,7 @@ class NewConversation extends Component
     }
 
     /** Telefone digitado: confere no WhatsApp antes de cadastrar, para um número sem conta não virar contato. */
-    private function newContact(StartConversation $start, CreateContact $createContact, Channel $channel): ?Contact
+    private function newContact(WhatsAppNumber $number, CreateContact $createContact, Channel $channel): ?Contact
     {
         $waId = PhoneFormat::toWaId($this->phone);
 
@@ -143,7 +144,7 @@ class NewConversation extends Component
             return $known;
         }
 
-        $start->assertHasWhatsApp($waId, $channel);
+        $number->assertExists($waId, $channel);
 
         try {
             return $createContact($this->phone, $this->name)['contact'];
