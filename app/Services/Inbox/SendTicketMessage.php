@@ -14,9 +14,9 @@ use Throwable;
 /**
  * Envia um texto do painel para o cliente do ticket, em dois passos.
  *
- * `OutgoingMessages::create` grava a linha no clique, para o atendente ver a própria mensagem na hora e para o eco
- * `fromMe` que pode chegar antes da resposta HTTP encontrar a mensagem pendente em vez de gravar uma segunda. `deliver` fala com o WAHA e roda
- * na fila de saída. Permissão é da Policy.
+ * `OutgoingMessages::create` grava a linha no clique, para o atendente ver a própria mensagem na hora e para o eco `fromMe`
+ * que pode chegar antes da resposta HTTP encontrar a mensagem pendente em vez de gravar uma segunda. `deliver` fala com o WAHA
+ * e roda na fila de saída. Permissão é da Policy.
  */
 class SendTicketMessage
 {
