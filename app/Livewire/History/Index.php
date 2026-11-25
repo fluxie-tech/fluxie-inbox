@@ -7,13 +7,11 @@ use App\Enums\TicketStatus;
 use App\Models\Contact;
 use App\Models\Sector;
 use App\Models\Ticket;
-use App\Models\TicketEvent;
 use App\Models\User;
 use App\Services\Inbox\HistorySearch;
-use App\Support\TicketTimeline;
+use App\Services\Inbox\HistoryTicketView;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
@@ -31,9 +29,6 @@ class Index extends Component
     private const PER_PAGE = 25;
 
     private const DEFAULT_DAYS = 30;
-
-    /** A transcrição mostra as últimas mensagens, como o Inbox. */
-    private const MESSAGE_LIMIT = 200;
 
     #[Url(as: 'q')]
     public string $q = '';
@@ -112,7 +107,7 @@ class Index extends Component
         $this->ticketId = $ticket->id;
     }
 
-    public function render(): View
+    public function render(HistoryTicketView $ticketView): View
     {
         $user = auth()->user();
         assert($user instanceof User);
@@ -122,33 +117,10 @@ class Index extends Component
             ->with(['contact.tags', 'sector', 'assignee'])
             ->simplePaginate(self::PER_PAGE);
 
-        $ticket = $this->ticketId === null
-            ? null
-            : Ticket::query()->inHistoryOf($user)->with(['contact.tags', 'channel', 'assignee', 'sector'])->find($this->ticketId);
-
-        $messages = collect();
-        $hasMore = false;
-        $events = new EloquentCollection;
-        $closer = null;
-
-        if ($ticket !== null) {
-            $latest = $ticket->messages()->with(['reactions', 'edits'])->orderByDesc('sent_at')->orderByDesc('id')->limit(self::MESSAGE_LIMIT + 1)->get();
-            $hasMore = $latest->count() > self::MESSAGE_LIMIT;
-            $messages = $latest->take(self::MESSAGE_LIMIT)->reverse()->values();
-            $events = $ticket->events()->with('actor')->orderBy('created_at')->orderBy('id')->get();
-            $closer = $events->last(fn (TicketEvent $event) => $event->type === 'closed')?->actor?->name;
-        }
-
         return view('livewire.history.index', [
             'activeFilters' => $this->activeFilters(),
             'tickets' => $tickets,
-            'ticket' => $ticket,
-            'messages' => $messages,
-            'hasMore' => $hasMore,
-            'limit' => self::MESSAGE_LIMIT,
-            'events' => TicketTimeline::changes($events),
-            'timeline' => new TicketTimeline($events),
-            'closer' => $closer,
+            ...$ticketView->for($user, $this->ticketId),
             // Setor apagado que já teve ticket continua filtrável; o que nunca teve não polui a lista.
             'sectors' => Sector::withTrashed()
                 ->where(fn ($query) => $query->whereNull('deleted_at')->orWhereIn('id', Ticket::query()->select('sector_id')->whereNotNull('sector_id')))
