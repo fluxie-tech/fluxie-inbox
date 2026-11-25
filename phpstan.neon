@@ -1,6 +1,7 @@
 includes:
     - vendor/larastan/larastan/extension.neon
     - vendor/nesbot/carbon/extension.neon
+    - vendor/phpat/phpat/extension.neon
 
 parameters:
     paths:
@@ -9,6 +10,13 @@ parameters:
         - config/
         - database/
         - routes/
+        - tests/Architecture/
 
     tmpDir: .phpstan.cache
     level: max
+
+services:
+    -
+        class: Tests\Architecture\LayerRules
+        tags:
+            - phpat.test
