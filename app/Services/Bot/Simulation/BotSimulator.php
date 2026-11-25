@@ -43,9 +43,11 @@ final class BotSimulator
         // quando o fluxo não tem saída.
         if ($id === null || $run->flow->type($id)?->waits() !== true) {
             $this->engine->deliver($run, 'erros');
-        } else {
-            $this->engine->reply($run, $text);
+
+            return $this->finish($state, $run);
         }
+
+        $this->engine->reply($run, $text);
 
         return $this->finish($state, $run);
     }

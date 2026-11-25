@@ -36,7 +36,9 @@ class MessageMediaController extends Controller
         abort_if($message->media_purged_at !== null, 404);
 
         // A cópia no disco de mídia vale mais que a do WAHA (e, no anexo enviado, é a única enquanto o eco não volta).
-        if ($message->media_path !== null && ($response = $this->fromDisk($request, $message)) !== null) {
+        $response = $message->media_path === null ? null : $this->fromDisk($request, $message);
+
+        if ($response !== null) {
             return $response;
         }
 

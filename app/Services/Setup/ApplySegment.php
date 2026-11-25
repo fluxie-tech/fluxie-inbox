@@ -35,11 +35,14 @@ final class ApplySegment
                 DefaultSectors::install();
                 DefaultTags::install();
                 $this->publishDefaultWorkflow($by);
-            } else {
-                Setting::put(DefaultSectors::MARK, true, 'bool');
-                Setting::put(DefaultTags::MARK, true, 'bool');
+                SetupState::setSegment($segment);
+                SetupState::setStep('canal');
+
+                return;
             }
 
+            Setting::put(DefaultSectors::MARK, true, 'bool');
+            Setting::put(DefaultTags::MARK, true, 'bool');
             SetupState::setSegment($segment);
             SetupState::setStep('canal');
         });

@@ -8,6 +8,7 @@ use App\Events\MessageStatusChanged;
 use App\Models\Channel;
 use App\Models\Message;
 use Illuminate\Database\Eloquent\Builder;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -81,7 +82,7 @@ class DrainOutbox
                 $message->update([
                     'delivery_status' => DeliveryStatus::FAILED,
                     'failure_code' => SendFailure::EXPIRED,
-                    'failure_reason' => SendFailure::reason(SendFailure::EXPIRED, new \RuntimeException),
+                    'failure_reason' => SendFailure::reason(SendFailure::EXPIRED, new RuntimeException),
                 ]);
                 MessageStatusChanged::dispatch($message);
             });

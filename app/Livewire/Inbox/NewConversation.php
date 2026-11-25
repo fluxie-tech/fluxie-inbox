@@ -57,10 +57,12 @@ class NewConversation extends Component
             }
 
             $this->pick($contactId);
-        } else {
-            $this->preselect(null);
+            $this->dispatch('modal-show', name: 'new-conversation');
+
+            return;
         }
 
+        $this->preselect(null);
         $this->dispatch('modal-show', name: 'new-conversation');
     }
 

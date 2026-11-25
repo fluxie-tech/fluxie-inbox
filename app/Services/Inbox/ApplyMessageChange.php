@@ -44,7 +44,9 @@ class ApplyMessageChange
 
         if ($text === '') {
             MessageReaction::query()->where('message_id', $target->id)->where('by', $by)->delete();
-        } else {
+        }
+
+        if ($text !== '') {
             $at = $this->time($data['timestamp'] ?? null);
             MessageReaction::query()->upsert(
                 [['message_id' => $target->id, 'by' => $by, 'emoji' => Str::limit($text, 32, ''), 'reacted_at' => $at, 'created_at' => $at, 'updated_at' => $at]],

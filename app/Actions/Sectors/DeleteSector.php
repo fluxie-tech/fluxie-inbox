@@ -23,7 +23,9 @@ class DeleteSector
             // segura a trava de chave estrangeira e a conferência abaixo o enxerga, em vez de passar por cima.
             $locked = Sector::query()->whereKey($sector->id)->lockForUpdate()->firstOrFail();
 
-            if (($reasons = $this->reasonsInUse($locked)) !== []) {
+            $reasons = $this->reasonsInUse($locked);
+
+            if ($reasons !== []) {
                 throw new SectorInUse('Não dá para apagar: '.implode('; ', $reasons).'.');
             }
 
@@ -35,9 +37,11 @@ class DeleteSector
     /** @return list<string> */
     private function reasonsInUse(Sector $sector): array
     {
+        $flows = $this->flowsTransferringTo($sector);
+
         return array_values(array_filter([
             $sector->hasOpenTickets() ? 'há tickets abertos neste setor (transfira ou encerre antes)' : null,
-            ($flows = $this->flowsTransferringTo($sector)) === [] ? null : 'ele é destino de transferência nos fluxos da Automação: '.implode(', ', $flows),
+            $flows === [] ? null : 'ele é destino de transferência nos fluxos da Automação: '.implode(', ', $flows),
             QuickReply::query()->where('sector_id', $sector->id)->exists() ? 'há respostas rápidas deste setor (mude ou apague em Respostas rápidas)' : null,
         ]));
     }

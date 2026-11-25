@@ -6,6 +6,7 @@ use App\Enums\DeliveryStatus;
 use App\Events\MessageStatusChanged;
 use App\Models\Message;
 use Illuminate\Database\Eloquent\Builder;
+use RuntimeException;
 
 /**
  * Recolhe o envio que ficou "Enviando" sem ninguém cuidando dele (job que morreu ou sumiu da fila). Pode ter saído, então
@@ -27,7 +28,7 @@ class OutboxRecovery
             $message->update([
                 'delivery_status' => DeliveryStatus::FAILED,
                 'failure_code' => SendFailure::UNKNOWN,
-                'failure_reason' => SendFailure::reason(SendFailure::UNKNOWN, new \RuntimeException),
+                'failure_reason' => SendFailure::reason(SendFailure::UNKNOWN, new RuntimeException),
             ]);
             MessageStatusChanged::dispatch($message);
         });

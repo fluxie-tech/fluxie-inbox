@@ -41,9 +41,11 @@ final class AlertRecipients
 
             if ($ticket->assigned_user_id !== null) {
                 $q->orWhere('id', $ticket->assigned_user_id);
-            } else {
-                $q->orWhere(fn (Builder $sub) => $this->seesQueue($sub, $ticket));
+
+                return;
             }
+
+            $q->orWhere(fn (Builder $sub) => $this->seesQueue($sub, $ticket));
         })->get();
     }
 
@@ -87,8 +89,10 @@ final class AlertRecipients
 
         if ($ticket->sector_id === null) {
             $q->orWhere('role', UserRole::ATENDENTE->value);
-        } else {
-            $q->orWhereHas('sectors', fn (Builder $s) => $s->whereKey($ticket->sector_id));
+
+            return;
         }
+
+        $q->orWhereHas('sectors', fn (Builder $s) => $s->whereKey($ticket->sector_id));
     }
 }
