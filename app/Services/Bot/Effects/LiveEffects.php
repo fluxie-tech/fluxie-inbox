@@ -25,8 +25,8 @@ use App\Models\User;
 use App\Services\Alerts\TicketAlerts;
 use App\Services\Inbox\AttachmentRules;
 use App\Services\Inbox\BusinessHours;
+use App\Services\Inbox\OutgoingMessages;
 use App\Services\Inbox\Presence;
-use App\Services\Inbox\SendTicketMessage;
 use App\Services\Waha\WahaClient;
 use Closure;
 use Illuminate\Contracts\Filesystem\Filesystem;
@@ -54,7 +54,7 @@ final class LiveEffects implements BotEffects
             return;
         }
 
-        $message = app(SendTicketMessage::class)->create($this->ticket, null, $text, MessageOrigin::BOT);
+        $message = app(OutgoingMessages::class)->create($this->ticket, null, $text, MessageOrigin::BOT);
         SendTicketMessageJob::dispatch($message->id)->afterCommit();
     }
 
@@ -79,7 +79,7 @@ final class LiveEffects implements BotEffects
             return;
         }
 
-        $message = app(SendTicketMessage::class)->record(
+        $message = app(OutgoingMessages::class)->record(
             $this->ticket,
             null,
             'media',

@@ -13,6 +13,7 @@ use App\Models\Ticket;
 use App\Models\User;
 use App\Models\WahaEvent;
 use App\Services\Inbox\IngestMessage;
+use App\Services\Inbox\OutgoingMessages;
 use App\Services\Inbox\SendTicketMessage;
 use App\Services\Waha\WahaRequestException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -61,7 +62,7 @@ class SendTicketMessageTest extends TestCase
     {
         Http::fake();
 
-        $message = app(SendTicketMessage::class)->create($this->ticket, $this->author, 'oi');
+        $message = app(OutgoingMessages::class)->create($this->ticket, $this->author, 'oi');
 
         Http::assertNothingSent();
         $this->assertSame('oi', $message->body);
@@ -73,7 +74,7 @@ class SendTicketMessageTest extends TestCase
     public function test_deliver_envia_uma_linha_ja_criada(): void
     {
         Http::fake(['*/api/sendText' => Http::response(['id' => self::SENT_ID], 201)]);
-        $message = app(SendTicketMessage::class)->create($this->ticket, $this->author, 'oi');
+        $message = app(OutgoingMessages::class)->create($this->ticket, $this->author, 'oi');
 
         app(SendTicketMessage::class)->deliver($message);
 
@@ -83,7 +84,7 @@ class SendTicketMessageTest extends TestCase
 
     public function test_job_que_morre_antes_do_envio_marca_a_mensagem_como_falha(): void
     {
-        $message = app(SendTicketMessage::class)->create($this->ticket, $this->author, 'oi');
+        $message = app(OutgoingMessages::class)->create($this->ticket, $this->author, 'oi');
 
         (new SendTicketMessageJob($message->id))->failed(new \RuntimeException('worker morto'));
 
@@ -96,7 +97,7 @@ class SendTicketMessageTest extends TestCase
 
     public function test_job_que_falha_nao_sobrescreve_mensagem_ja_enviada(): void
     {
-        $message = app(SendTicketMessage::class)->create($this->ticket, $this->author, 'oi');
+        $message = app(OutgoingMessages::class)->create($this->ticket, $this->author, 'oi');
         $message->update(['wa_message_id' => 'ABC', 'delivery_status' => DeliveryStatus::SENT]);
 
         (new SendTicketMessageJob($message->id))->failed(new \RuntimeException('tarde demais'));

@@ -19,7 +19,7 @@ use Throwable;
  */
 class SendTicketMedia
 {
-    public function __construct(private readonly SendTicketMessage $messages) {}
+    public function __construct(private readonly OutgoingMessages $messages) {}
 
     /**
      * @param  string  $caption  legenda (o texto digitado vai no primeiro arquivo)
@@ -49,7 +49,7 @@ class SendTicketMedia
                 'media_name' => $voice ? 'audio.'.$info['ext'] : $info['name'],
                 'media_size' => $file->getSize(),
                 'media_path' => $path,
-                ...SendTicketMessage::quoteColumns($quoted),
+                ...OutgoingMessages::quoteColumns($quoted),
             ]);
         } catch (Throwable $e) {
             // Sem linha não há dono para a cópia: ela não pode ficar órfã no disco.

@@ -30,7 +30,7 @@ class AfterHoursReply
 
     public function __construct(
         private readonly BusinessHours $hours,
-        private readonly SendTicketMessage $send,
+        private readonly OutgoingMessages $send,
     ) {}
 
     /** `$freshAt` é o que conta como "recente" (a hora em que a mensagem chegou, se ao vivo); sem ele, a hora de envio. */

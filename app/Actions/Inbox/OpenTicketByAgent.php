@@ -12,14 +12,14 @@ use App\Models\Sector;
 use App\Models\Ticket;
 use App\Models\TicketEvent;
 use App\Models\User;
-use App\Services\Inbox\SendTicketMessage;
+use App\Services\Inbox\OutgoingMessages;
 use App\Services\Inbox\Signature;
 use App\Services\Inbox\SyncContactPhoto;
 
 /** O ticket e a primeira mensagem do atendente nascem juntos, o ticket já em atendimento e dele, sem SLA e sem bot. */
 class OpenTicketByAgent
 {
-    public function __construct(private readonly SendTicketMessage $messages) {}
+    public function __construct(private readonly OutgoingMessages $messages) {}
 
     /** Roda dentro da transação de quem chama. */
     /** @return array{ticket: Ticket, message: Message} */
