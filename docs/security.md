@@ -7,7 +7,7 @@ Linha de base de segurança do app, o que está decidido e como mudar cada contr
 
 | Controle | Onde | Observação |
 |---|---|---|
-| HTTPS e HSTS (1 ano) | Traefik e nginx da imagem | `includeSubDomains` |
+| HTTPS e HSTS (1 ano) | Traefik e nginx da imagem | `includeSubDomains`; sem `preload` (ver Cabeçalhos e CSP) |
 | `X-Frame-Options`, `nosniff`, `Referrer-Policy` | nginx da imagem | |
 | Cookies `Secure`, `HttpOnly`, `SameSite=lax` | `config/session.php` | verificado no beta |
 | CSRF | Laravel e Livewire | só o webhook do WAHA é isento, e ele exige HMAC |
@@ -17,7 +17,7 @@ Linha de base de segurança do app, o que está decidido e como mudar cada contr
 | Senha | mínimo de 12, maiúscula, número, símbolo e checagem de vazamento em produção | |
 | Canais privados (Reverb) | `routes/channels.php`, origens permitidas | só usuário ativo |
 | Segredos | `.env*` ignorados pelo git; nenhum no repositório | rotacionar antes de purgar, se vazar |
-| Dependências | `composer audit` e `npm audit` no CI, Dependabot | |
+| Dependências | `composer audit` e `npm audit` no CI, Dependabot | sem auto-merge (ver Varreduras automáticas) |
 | Análise estática | Larastan `max`, PHPMD | |
 
 ## Cabeçalhos e CSP
@@ -44,6 +44,16 @@ A CSP começa em `report-only`: o navegador **registra** as violações no conso
    o Alpine do Livewire pode pedir a versão compatível com CSP) antes de seguir.
 2. No Coolify, definir `CSP_MODE=enforce` no `app-beta` e reiniciar.
 3. Repetir a navegação e conferir que nada quebrou. Para desligar rápido: `CSP_MODE=report-only` ou `off`.
+
+**Relatórios de violação.** Nos modos `enforce` e `report-only` a política manda o navegador relatar as violações ao próprio
+app (`report-uri /csp-report` e `report-to csp`, com o cabeçalho `Reporting-Endpoints: csp="/csp-report"`). O coletor é
+interno: `POST /csp-report`, sem login nem sessão, com limite por IP. Violações iguais (mesma diretiva, mesma URI bloqueada e
+mesmo documento) dentro de 1 hora viram uma linha só. Elas aparecem na Auditoria › Sistema, no grupo "Segurança", e no log.
+Com `CSP_MODE=off` nenhum endpoint de relatório é enviado.
+
+**HSTS `preload` fica desligado.** A lista de preload só aceita o cabeçalho servido no domínio raiz, e o app roda em
+subdomínio. Além disso a imagem é instalada por terceiros, e o `preload` valeria para o domínio deles. O HSTS atual
+(`max-age=31536000; includeSubDomains`, em `docker/nginx/static-security-headers.conf`) permanece.
 
 ## Proxies confiáveis
 
@@ -137,6 +147,8 @@ deploy. Ações fixadas por SHA de commit e permissão mínima (`contents: read`
 | Scan dinâmico passivo (OWASP ZAP baseline) contra o staging | semanal e sob demanda | nada por enquanto: só relata, até a primeira rodada ser triada |
 
 Rodar na hora: `gh workflow run security` e `gh workflow run security-scan`.
+
+**Dependabot sem auto-merge:** decisão do dono em 25/11/2026. Os PRs do Dependabot são revisados e mergeados à mão; o Dependency graph já está ligado (ver abaixo).
 
 **Revisão de dependências nos PRs:** o job `dependency-review` do `security.yml` (`actions/dependency-review-action`, reprova `high`) depende do Dependency graph, ativado no GitHub (Settings → Advanced Security). Se for desligado, o job passa a reprovar com "Dependency review is not supported on this repository".
 

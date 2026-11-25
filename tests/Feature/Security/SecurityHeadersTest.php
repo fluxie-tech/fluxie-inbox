@@ -141,4 +141,21 @@ class SecurityHeadersTest extends TestCase
 
         $this->assertStringContainsString("connect-src 'self' ws://localhost:8080", $policy);
     }
+
+    public function test_politica_manda_relatorio_ao_coletor_interno_nos_dois_modos(): void
+    {
+        foreach (['enforce' => 'Content-Security-Policy', 'report-only' => 'Content-Security-Policy-Report-Only'] as $mode => $header) {
+            config(['security.csp_mode' => $mode]);
+            $response = $this->get('/login');
+            $this->assertStringContainsString('report-uri /csp-report', (string) $response->headers->get($header));
+            $this->assertStringContainsString('report-to csp', (string) $response->headers->get($header));
+            $this->assertSame('csp="/csp-report"', $response->headers->get('Reporting-Endpoints'));
+        }
+    }
+
+    public function test_csp_desligada_nao_manda_endpoint_de_relatorio(): void
+    {
+        config(['security.csp_mode' => 'off']);
+        $this->assertFalse($this->get('/login')->headers->has('Reporting-Endpoints'));
+    }
 }
