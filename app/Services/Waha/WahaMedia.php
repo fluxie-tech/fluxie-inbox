@@ -2,6 +2,7 @@
 
 namespace App\Services\Waha;
 
+use App\Models\Channel;
 use App\Services\Inbox\OggOpus;
 use Illuminate\Http\Client\Response;
 
@@ -16,6 +17,11 @@ class WahaMedia
     private const SEND_TIMEOUT_SECONDS = 90;
 
     public function __construct(private readonly WahaClient $client) {}
+
+    public static function forChannel(Channel $channel): self
+    {
+        return new self(new WahaClient($channel));
+    }
 
     /**
      * Envia um arquivo em base64. O endpoint depende do tipo: imagem, vídeo, voz (o WAHA converte para OGG/OPUS com

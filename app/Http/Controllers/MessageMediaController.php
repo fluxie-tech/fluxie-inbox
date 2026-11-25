@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Message;
 use App\Services\Inbox\IncomingMedia;
-use App\Services\Waha\WahaClient;
 use App\Services\Waha\WahaMedia;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\Client\Response as UpstreamResponse;
@@ -42,7 +41,7 @@ class MessageMediaController extends Controller
         }
 
         $ref = $this->safeRef($message);
-        $upstream = (new WahaMedia(new WahaClient($message->channel()->firstOrFail())))->streamFile($ref, $request->header('Range'));
+        $upstream = WahaMedia::forChannel($message->channel()->firstOrFail())->streamFile($ref, $request->header('Range'));
 
         abort_if($upstream === null, 404);
 
