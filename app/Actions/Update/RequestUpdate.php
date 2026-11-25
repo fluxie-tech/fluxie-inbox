@@ -12,9 +12,6 @@ use App\Services\Update\UpdateGate;
 
 class RequestUpdate
 {
-    /** O que o admin digita para confirmar, como a restauração do banco. */
-    public const CONFIRM_WORD = 'ATUALIZAR';
-
     public function __construct(private readonly UpdateGate $gate, private readonly InstalledVersion $installed) {}
 
     /** Devolve o motivo da recusa, ou `null` se registrou e despachou a atualização. */
@@ -23,7 +20,7 @@ class RequestUpdate
         $target = $this->gate->target();
 
         $problem = $this->gate->blocker() ?? match (true) {
-            $typed !== self::CONFIRM_WORD => 'Digite '.self::CONFIRM_WORD.' para confirmar.',
+            $typed !== UpdateGate::CONFIRM_WORD => 'Digite '.UpdateGate::CONFIRM_WORD.' para confirmar.',
             default => $this->gate->busy(),
         };
 

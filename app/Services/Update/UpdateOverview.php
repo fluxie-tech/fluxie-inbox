@@ -2,7 +2,6 @@
 
 namespace App\Services\Update;
 
-use App\Actions\Update\RequestUpdate;
 use App\Enums\UpdateStatus;
 use App\Models\SystemUpdate;
 use App\Settings\UpdateSettings;
@@ -39,7 +38,7 @@ class UpdateOverview
             'lastCheck' => $lastCheck === null ? null : ['at' => $lastCheck['at']->timezone($timezone)->format('d/m/Y H:i'), 'ok' => $lastCheck['ok'], 'error' => $lastCheck['error']],
             'tokenSaved' => UpdateSettings::token() !== null,
             'tokenSavedAt' => $saved?->timezone($timezone)->format('d/m'),
-            'confirmWord' => RequestUpdate::CONFIRM_WORD,
+            'confirmWord' => UpdateGate::CONFIRM_WORD,
             'last' => $last,
             'open' => $open !== null,
             'stale' => $open !== null && $open->started_at !== null && $open->started_at->lt(now()->subMinutes(self::STALE_MINUTES)),

@@ -10,11 +10,11 @@ use App\Services\Bot\Flow\NodeType;
  */
 final class FlowGraphShape
 {
-    public const MAX_NODES = 300;
+    private const MAX_NODES = 300;
 
-    public const MAX_EDGES = 600;
+    private const MAX_EDGES = 600;
 
-    public const MAX_BYTES = 524288;
+    private const MAX_BYTES = 524288;
 
     /**
      * O erro da forma do grafo, ou null quando ele cabe.

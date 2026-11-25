@@ -234,7 +234,7 @@ trait ComposesMessages
 
         $error = AttachmentRules::validate($file, true);
 
-        if ($error === null && ! app(AgentRateLimits::class)->reserveSends($this->user(), 1)) {
+        if ($error === null && ! $this->reserveSends(1)) {
             $error = 'Você está enviando mensagens rápido demais. Aguarde alguns segundos.';
         }
 

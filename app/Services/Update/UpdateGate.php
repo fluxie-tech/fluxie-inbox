@@ -8,6 +8,9 @@ use App\Settings\UpdateSettings;
 
 class UpdateGate
 {
+    /** O que o admin digita para confirmar, como a restauração do banco. */
+    public const CONFIRM_WORD = 'ATUALIZAR';
+
     public function __construct(
         private readonly InstalledVersion $installed,
         private readonly RestoreProgress $restore,

@@ -9,7 +9,7 @@ use Throwable;
 /** As guardas da tela de backup: o que impede o backup manual e o que impede a restauração agora (cada um com os próprios textos). */
 class RestoreGate
 {
-    public const UPDATE_RUNNING = 'Há uma atualização do sistema em andamento; espere ela terminar.';
+    private const UPDATE_RUNNING = 'Há uma atualização do sistema em andamento; espere ela terminar.';
 
     public function __construct(
         private readonly RestoreProgress $progress,
