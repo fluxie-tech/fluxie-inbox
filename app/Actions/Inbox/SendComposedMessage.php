@@ -11,8 +11,8 @@ use App\Services\Inbox\AttachmentRules;
 use App\Services\Inbox\OutgoingMessages;
 use App\Services\Inbox\SendTicketMedia;
 use App\Services\Inbox\Signature;
-use Illuminate\Http\UploadedFile;
 use InvalidArgumentException;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 /**
  * Envia o que o atendente compôs: o texto e/ou os arquivos da bandeja. Cada arquivo é uma mensagem; o texto vira a legenda
@@ -36,8 +36,8 @@ final class SendComposedMessage
     /**
      * Só a primeira mensagem do envio cita: o texto separado ou, sem ele, o primeiro arquivo.
      *
-     * @param  array<int, UploadedFile>  $files
-     * @return array{error: ?string, failures: list<string>} `error` = nada foi enviado (a bandeja fica); `failures` = arquivos recusados
+     * @param  array<int, TemporaryUploadedFile>  $files
+     * @return array{error: ?string, failures: list<string>} `error` = nada foi enviado (a bandeja fica); `failures` = arquivos recusados. Cada temporário é apagado logo após o próprio envio
      */
     public function __invoke(Ticket $ticket, User $by, string $draft, array $files, ?Message $quoted): array
     {
@@ -65,7 +65,7 @@ final class SendComposedMessage
     }
 
     /**
-     * @param  array<int, UploadedFile>  $files
+     * @param  array<int, TemporaryUploadedFile>  $files
      */
     private function captionsFirstFile(string $draft, array $files): bool
     {
@@ -79,7 +79,7 @@ final class SendComposedMessage
     }
 
     /**
-     * @param  array<int, UploadedFile>  $files
+     * @param  array<int, TemporaryUploadedFile>  $files
      * @return list<string> mensagens de erro dos arquivos que o servidor recusou na hora de enviar
      */
     private function sendFiles(Ticket $ticket, User $by, array $files, string $caption, ?Message $quoted): array
@@ -92,6 +92,8 @@ final class SendComposedMessage
             } catch (InvalidArgumentException $e) {
                 $failures[] = $e->getMessage();
             }
+
+            $file->delete();
         }
 
         return $failures;

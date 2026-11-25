@@ -154,19 +154,7 @@ trait ComposesMessages
         $this->resetErrorBag();
         $this->validateDraft();
 
-        // Na falha geral (`error`) a bandeja fica; em qualquer outro desfecho, inclusive exceção inesperada, os temporários saem.
-        $keepTray = false;
-
-        try {
-            $result = app(SendComposedMessage::class)($ticket, $this->user(), $this->draft, $this->attachments, $this->quotedMessage($ticket->id));
-            $keepTray = $result['error'] !== null;
-        } finally {
-            if (! $keepTray) {
-                foreach ($this->attachments as $file) {
-                    $file->delete();
-                }
-            }
-        }
+        $result = app(SendComposedMessage::class)($ticket, $this->user(), $this->draft, $this->attachments, $this->quotedMessage($ticket->id));
 
         if ($result['error'] !== null) {
             $this->addError('draft', $result['error']);
