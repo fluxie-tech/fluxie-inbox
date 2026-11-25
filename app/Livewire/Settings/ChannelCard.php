@@ -3,17 +3,14 @@
 namespace App\Livewire\Settings;
 
 use App\Enums\AuditAction;
-use App\Enums\ChannelStatus;
 use App\Enums\TicketStatus;
 use App\Livewire\Settings\Concerns\RecoversHistory;
 use App\Livewire\Settings\Concerns\SendsTestMessage;
 use App\Models\Channel;
 use App\Models\Ticket;
 use App\Services\Audit\Auditor;
-use App\Services\Waha\ChannelPhone;
+use App\Services\Waha\ChannelLink;
 use App\Services\Waha\ChannelSession;
-use App\Services\Waha\WahaCalls;
-use App\Services\Waha\WahaQr;
 use App\Services\Waha\WahaRequestException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Client\ConnectionException;
@@ -66,7 +63,7 @@ class ChannelCard extends Component
         $this->channelName = $channel->name;
     }
 
-    public function connect(): void
+    public function connect(ChannelLink $link): void
     {
         $this->reset('errorMessage', 'sentMessage');
 
@@ -80,15 +77,10 @@ class ChannelCard extends Component
         $this->channel->save();
 
         try {
-            (new ChannelSession($this->channel))->start();
+            $link->start($this->channel);
         } catch (Throwable $exception) {
             $this->fail($exception);
-
-            return;
         }
-
-        app(WahaCalls::class)->applyQuietly($this->channel);
-        $this->setStatus(ChannelStatus::STARTING);
     }
 
     public function rename(): void
@@ -98,19 +90,15 @@ class ChannelCard extends Component
         $this->channel->update(['name' => trim($this->channelName)]);
     }
 
-    public function disconnect(): void
+    public function disconnect(ChannelLink $link): void
     {
         $this->reset('errorMessage', 'qr', 'pairingCode');
 
         try {
-            (new ChannelSession($this->channel))->stop();
+            $link->stop($this->channel);
         } catch (Throwable $exception) {
             $this->fail($exception);
-
-            return;
         }
-
-        $this->setStatus(ChannelStatus::STOPPED);
     }
 
     /** Pede a confirmação (com a contagem de tickets abertos) antes de uma ação que derruba o atendimento do canal. */
@@ -129,47 +117,37 @@ class ChannelCard extends Component
      * Delete, e não stop nem logout: com WHATSAPP_RESTART_ALL_SESSIONS=true o WAHA religa toda sessão STOPPED ao reiniciar, e uma
      * sessão rodando que sofre logout reinicia em QR. O delete também desloga e desvincula o aparelho.
      */
-    public function deactivate(): void
+    public function deactivate(ChannelLink $link): void
     {
         $this->reset('errorMessage', 'qr', 'qrValue', 'pairingCode', 'confirming');
 
         try {
-            (new ChannelSession($this->channel))->deleteSession();
+            $link->deactivate($this->channel);
         } catch (Throwable $exception) {
             $this->fail($exception);
-
-            return;
         }
-
-        $this->channel->active = false;
-        $this->setStatus(ChannelStatus::STOPPED);
     }
 
     /** O canal volta a valer e a sessão inicia: o aparelho foi desvinculado, então aparece o QR para ler de novo. */
-    public function reactivate(): void
+    public function reactivate(ChannelLink $link): void
     {
         $this->reset('errorMessage');
         $this->channel->update(['active' => true]);
 
         try {
-            (new ChannelSession($this->channel))->start();
+            $link->start($this->channel);
         } catch (Throwable $exception) {
             $this->fail($exception);
-
-            return;
         }
-
-        app(WahaCalls::class)->applyQuietly($this->channel);
-        $this->setStatus(ChannelStatus::STARTING);
     }
 
     /** Remove a sessão no WAHA. O canal e os tickets ficam; readicionar a mesma sessão os reaproveita. */
-    public function deleteSession(): void
+    public function deleteSession(ChannelLink $link): void
     {
         $this->reset('errorMessage', 'qr', 'qrValue', 'pairingCode', 'confirming');
 
         try {
-            (new ChannelSession($this->channel))->deleteSession();
+            $link->deleteSession($this->channel);
         } catch (Throwable $exception) {
             $this->fail($exception);
 
@@ -177,7 +155,6 @@ class ChannelCard extends Component
         }
 
         $this->sessionMissing = true;
-        $this->setStatus(ChannelStatus::STOPPED);
     }
 
     /** Remove a linha do canal, só se ele nunca atendeu ninguém (ticket e mensagem apontam para o canal). */
@@ -205,47 +182,32 @@ class ChannelCard extends Component
         $this->dispatch('channel-deleted');
     }
 
-    public function refreshStatus(): void
+    public function refreshStatus(ChannelLink $link): void
     {
         try {
-            $session = (new ChannelSession($this->channel))->session();
-            $newStatus = $session['status'] ?? null;
-        } catch (WahaRequestException $exception) {
-            if ($exception->statusCode === 404) {
-                // Sessão que não existe no WAHA (excluída): não é erro, e o canal fica parado.
-                $this->sessionMissing = true;
-                $this->setStatus(ChannelStatus::STOPPED);
-
-                return;
-            }
-
-            $this->fail($exception);
-
-            return;
+            $result = $link->refresh($this->channel);
         } catch (Throwable $exception) {
             $this->fail($exception);
 
             return;
         }
 
-        $this->sessionMissing = false;
-        $status = is_string($newStatus) ? ChannelStatus::tryFrom($newStatus) : null;
+        $this->sessionMissing = $result['missing'];
 
-        if ($status !== null) {
-            $this->setStatus($status);
+        if ($result['missing']) {
+            return;
         }
 
-        $me = data_get($session, 'me.id');
-        app(ChannelPhone::class)->sync($this->channel, is_string($me) ? $me : null);
+        $status = $result['status'];
 
         if ($status?->needsQr() && $this->channel->active) {
-            $this->refreshQr();
+            $this->refreshQr($link);
         } elseif ($status !== null) {
             $this->reset('qr', 'qrValue');
         }
     }
 
-    public function requestPairingCode(): void
+    public function requestPairingCode(ChannelLink $link): void
     {
         $this->reset('errorMessage', 'pairingCode');
 
@@ -258,8 +220,8 @@ class ChannelCard extends Component
         }
 
         try {
-            $this->pairingCode = (new ChannelSession($this->channel))->requestPairingCode($phone);
-            $this->refreshQr();
+            $this->pairingCode = $link->requestPairingCode($this->channel, $phone);
+            $this->refreshQr($link);
         } catch (Throwable $exception) {
             $this->fail($exception);
         }
@@ -292,21 +254,13 @@ class ChannelCard extends Component
         ]);
     }
 
-    private function setStatus(ChannelStatus $status): void
-    {
-        $this->channel->status = $status;
-        $this->channel->last_event_at = now();
-        $this->channel->save();
-    }
-
-    private function refreshQr(): void
+    private function refreshQr(ChannelLink $link): void
     {
         try {
-            $waha = WahaQr::forChannel($this->channel);
-
             // O texto cru vai para o navegador desenhar com a logo; o PNG do WAHA só quando o texto não vem ou o desenho falhou.
-            $this->qrValue = $this->preferPng ? null : $waha->raw();
-            $this->qr = $this->qrValue === null ? $waha->dataUri() : null;
+            $qr = $link->qr($this->channel, $this->preferPng);
+            $this->qrValue = $qr['value'];
+            $this->qr = $qr['png'];
         } catch (Throwable $exception) {
             $this->reset('qr', 'qrValue');
             $this->fail($exception);
@@ -314,10 +268,10 @@ class ChannelCard extends Component
     }
 
     /** O navegador não conseguiu desenhar o QR (biblioteca bloqueada, por exemplo): volta à imagem do WAHA. */
-    public function qrFallback(): void
+    public function qrFallback(ChannelLink $link): void
     {
         $this->preferPng = true;
-        $this->refreshQr();
+        $this->refreshQr($link);
     }
 
     private function fail(Throwable $exception): void
