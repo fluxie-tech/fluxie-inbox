@@ -39,7 +39,7 @@ final class CspReports
     {
         $key = 'csp-report:'.sha1($violation['directive'].'|'.$violation['blocked'].'|'.$violation['document']);
 
-        if (! Cache::add($key, true, 3600)) {
+        if (! Cache::add($key, true, 3600) || ! $this->underHourlyCap()) {
             return;
         }
 
@@ -51,6 +51,21 @@ final class CspReports
             'disposition' => $violation['disposition'],
         ], 'Navegador');
         Log::warning('CSP: violação', $violation);
+    }
+
+    /** Teto global de linhas por hora: um IP variando a URI bloqueada não pode encher a auditoria. Avisa uma vez por hora. */
+    private function underHourlyCap(): bool
+    {
+        $key = 'csp-report-hour:'.now()->format('YmdH');
+        Cache::add($key, 0, 3600);
+        $count = (int) Cache::increment($key);
+        $cap = config()->integer('security.csp_report_per_hour');
+
+        if ($count === $cap + 1) {
+            Log::warning('CSP: teto de relatórios por hora atingido', ['teto' => $cap]);
+        }
+
+        return $count <= $cap;
     }
 
     /**
@@ -89,13 +104,18 @@ final class CspReports
 
         return [
             'directive' => self::text($directive),
-            'blocked' => is_string($blocked) ? self::text($blocked) : '',
-            // Sem query string nem fragmento: o endereço da tela pode levar identificador de ticket ou token.
-            'document' => is_string($document) ? self::text((string) preg_replace('/[?#].*$/s', '', $document)) : '',
-            'source' => is_string($source) ? self::text($source) : null,
+            'blocked' => is_string($blocked) ? self::url($blocked) : '',
+            'document' => is_string($document) ? self::url($document) : '',
+            'source' => is_string($source) ? self::url($source) : null,
             'line' => is_int($line) ? $line : null,
             'disposition' => is_string($disposition) ? self::text($disposition) : 'enforce',
         ];
+    }
+
+    /** Sem query string nem fragmento: o endereço pode levar identificador de ticket ou token. */
+    private static function url(string $value): string
+    {
+        return self::text((string) preg_replace('/[?#].*$/s', '', $value));
     }
 
     private static function text(string $value): string

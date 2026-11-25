@@ -32,6 +32,9 @@ return [
 
     'csp_report_max_bytes' => 16384,
 
+    /** Teto global de violações gravadas por hora (todos os IPs); o excedente é descartado e o log avisa uma vez. */
+    'csp_report_per_hour' => 200,
+
     'send_message_per_minute' => 30,
 
     /** Reagir, editar e apagar mensagem pelo painel: por usuário, junto (cada ação chama o WhatsApp). */

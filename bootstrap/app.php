@@ -29,7 +29,6 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->validateCsrfTokens(except: [
             'webhooks/waha',
-            'csp-report',
         ]);
 
         // A restauração do banco põe o sistema em manutenção por alguns segundos; a página de andamento e o JSON do estado

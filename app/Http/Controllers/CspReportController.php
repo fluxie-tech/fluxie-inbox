@@ -11,9 +11,12 @@ class CspReportController extends Controller
 {
     public function __invoke(Request $request, CspReports $reports): Response
     {
-        $body = $request->getContent();
+        $max = config()->integer('security.csp_report_max_bytes');
 
-        if (strlen($body) <= config()->integer('security.csp_report_max_bytes')) {
+        // O Content-Length recusa antes de ler o corpo; o tamanho real vale para quem não o envia.
+        $body = (int) $request->header('Content-Length') > $max ? '' : $request->getContent();
+
+        if ($body !== '' && strlen($body) <= $max) {
             foreach ($reports->parse($body, (string) $request->header('Content-Type')) as $violation) {
                 $reports->record($violation);
             }
