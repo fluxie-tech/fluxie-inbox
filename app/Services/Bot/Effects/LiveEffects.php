@@ -2,185 +2,90 @@
 
 namespace App\Services\Bot\Effects;
 
-use App\Actions\Contacts\SaveContact;
-use App\Actions\Inbox\ClaimTicket;
-use App\Actions\Inbox\CloseTicket;
-use App\Actions\Inbox\TransferTicket;
-use App\Enums\ClosedReason;
-use App\Enums\MessageOrigin;
-use App\Enums\NoteOrigin;
-use App\Enums\TagScope;
-use App\Enums\TicketStatus;
-use App\Events\TicketUpdated;
-use App\Jobs\SendTicketMessageJob;
 use App\Models\BotSession;
-use App\Models\Contact;
-use App\Models\Message;
 use App\Models\Sector;
 use App\Models\Tag;
 use App\Models\Ticket;
-use App\Models\TicketEvent;
-use App\Models\TicketNote;
 use App\Models\User;
-use App\Services\Alerts\TicketAlerts;
-use App\Services\Inbox\AttachmentRules;
 use App\Services\Inbox\BusinessHours;
-use App\Services\Inbox\OutgoingMessages;
-use App\Services\Inbox\Presence;
-use App\Services\Waha\WahaClient;
 use Closure;
-use Illuminate\Contracts\Filesystem\Filesystem;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Sleep;
-use Illuminate\Support\Str;
-use Throwable;
 
 /**
- * O bot de verdade: grava, envia e muda o ticket.
+ * O bot de verdade: grava, envia e muda o ticket. Cada assunto fica num colaborador que recebe o mesmo `Ticket`, para que o
+ * `refresh()` do `exclusive` valha para todos.
  *
  * @SuppressWarnings("PHPMD.TooManyPublicMethods") a interface tem um método por tipo de efeito, de propósito
  */
 final class LiveEffects implements BotEffects
 {
-    public function __construct(private readonly Ticket $ticket) {}
+    private readonly LiveMessages $messages;
 
-    /** Grava e despacha uma mensagem do bot; visto e "digitando" saem em `SendTicketMessage::deliver`, como no envio humano. */
+    private readonly LiveTyping $typing;
+
+    private readonly LiveQueue $queue;
+
+    private readonly LiveTags $tags;
+
+    private readonly LiveRecords $records;
+
+    public function __construct(private readonly Ticket $ticket)
+    {
+        $this->messages = new LiveMessages($ticket);
+        $this->typing = new LiveTyping($ticket);
+        $this->queue = new LiveQueue($ticket);
+        $this->tags = new LiveTags($ticket);
+        $this->records = new LiveRecords($ticket);
+    }
+
     public function say(string $text): void
     {
-        if (trim($text) === '') {
-            return;
-        }
-
-        $message = app(OutgoingMessages::class)->create($this->ticket, null, $text, MessageOrigin::BOT);
-        SendTicketMessageJob::dispatch($message->id)->afterCommit();
+        $this->messages->say($text);
     }
 
-    /** Arquivo que sumiu é registrado no log e o fluxo segue. */
     public function media(string $path, string $caption): void
     {
-        $disk = Storage::disk('local');
-
-        // O caminho vem do grafo (dado não confiável): só vale dentro do storage, sem subir de diretório.
-        if ($path === '' || str_contains($path, '..') || ! $disk->exists($path)) {
-            Log::warning('Bot: arquivo do bloco Enviar mídia não encontrado', ['ticket' => $this->ticket->id, 'path' => $path]);
-
-            return;
-        }
-
-        $mime = $disk->mimeType($path);
-        $copy = $this->copyToMediaDisk($disk, $path);
-
-        if ($copy === null) {
-            Log::warning('Bot: não foi possível copiar o arquivo do bloco Enviar mídia', ['ticket' => $this->ticket->id, 'path' => $path]);
-
-            return;
-        }
-
-        $message = app(OutgoingMessages::class)->record(
-            $this->ticket,
-            null,
-            'media',
-            $caption,
-            MessageOrigin::BOT,
-            [
-                'media_mime' => is_string($mime) && $mime !== '' ? $mime : 'application/octet-stream',
-                'media_name' => AttachmentRules::safeName(basename($path)),
-                'media_size' => $disk->size($path),
-                'media_path' => $copy,
-            ],
-        );
-        SendTicketMessageJob::dispatch($message->id)->afterCommit();
+        $this->messages->media($path, $caption);
     }
 
-    /** A presença é melhor esforço: se o WAHA falhar, só a pausa fica. */
     public function wait(int $seconds): void
     {
-        $contact = $this->ticket->contact()->firstOrFail();
-        $chatId = $contact->wa_id ?? (string) $contact->lid;
-        $client = new WahaClient($this->ticket->channel()->firstOrFail());
-
-        try {
-            $client->startTyping($chatId);
-        } catch (Throwable $e) {
-            Log::warning('Bot: "digitando" falhou e foi ignorado', ['erro' => $e->getMessage()]);
-        }
-
-        Sleep::for($seconds)->seconds();
-
-        try {
-            $client->stopTyping($chatId);
-        } catch (Throwable $e) {
-            Log::warning('Bot: parar "digitando" falhou e foi ignorado', ['erro' => $e->getMessage()]);
-        }
-
-        app(Presence::class)->botTyped($this->ticket);
+        $this->typing->wait($seconds);
     }
 
     public function saveContactField(string $field, string $value): void
     {
-        (new SaveContact)($this->ticket->contact()->firstOrFail(), [$field => $value]);
+        $this->records->saveContactField($field, $value);
     }
 
     public function tag(Tag $tag): void
     {
-        $this->tagOwner($tag)?->syncWithoutDetaching([$tag->id]);
+        $this->tags->tag($tag);
     }
 
     public function hasTag(Tag $tag): bool
     {
-        return $this->tagOwner($tag)?->whereKey($tag->id)->exists() ?? false;
-    }
-
-    /**
-     * Onde a etiqueta mora, ou nulo se o contato não existe mais: efeito opcional, o fluxo do bot segue.
-     *
-     * @return BelongsToMany<Tag, Contact>|BelongsToMany<Tag, Ticket>|null
-     */
-    private function tagOwner(Tag $tag): ?BelongsToMany
-    {
-        return $tag->scope === TagScope::CONTATO ? $this->ticket->contact()->first()?->tags() : $this->ticket->tags();
+        return $this->tags->hasTag($tag);
     }
 
     public function note(string $body): void
     {
-        TicketNote::create(['ticket_id' => $this->ticket->id, 'origin' => NoteOrigin::BOT, 'body' => $body]);
+        $this->records->note($body);
     }
 
     public function close(): void
     {
-        (new CloseTicket)($this->ticket, null, ClosedReason::BOT);
+        $this->records->close();
     }
 
-    /**
-     * Entra na fila e, se a pessoa escolhida pode, passa o ticket a ela; devolve o id de quem assumiu. Com atribuição possível a
-     * fila não toca o som; se a atribuição falhar, ela é avisada em seguida.
-     */
     public function enterQueue(?Sector $sector, ?User $assignTo): ?int
     {
-        $user = self::assignable($assignTo, $sector);
-
-        $this->queue($sector, announce: $user === null);
-        $assigned = $user !== null ? $this->assign($user) : null;
-
-        if ($user !== null && $assigned === null) {
-            app(TicketAlerts::class)->queued($this->ticket->refresh());
-        }
-
-        return $assigned;
-    }
-
-    /** A pessoa, se ela existe, está ativa e atende o setor (ticket sem setor é de todos); senão nulo. */
-    public static function assignable(?User $user, ?Sector $sector): ?User
-    {
-        return $user !== null && $user->active && $user->canHandleSector($sector?->id) ? $user : null;
+        return $this->queue->enter($sector, $assignTo);
     }
 
     public function logHandoff(string $reason, ?Sector $sector, ?int $assignedUserId): void
     {
-        TicketEvent::create(['ticket_id' => $this->ticket->id, 'type' => 'bot_handoff', 'payload' => ['reason' => $reason, 'sector_id' => $sector?->id, ...($assignedUserId !== null ? ['assigned_user_id' => $assignedUserId] : [])]]);
+        $this->records->logHandoff($reason, $sector, $assignedUserId);
     }
 
     public function exclusive(BotSession $session, Closure $work): void
@@ -224,62 +129,5 @@ final class LiveEffects implements BotEffects
     public function protocol(): string
     {
         return (string) $this->ticket->protocol;
-    }
-
-    /** Passa o ticket (já na fila) à pessoa; devolve o id dela, ou nulo se ele já tinha dono ou foi assumido antes. */
-    private function assign(User $user): ?int
-    {
-        if (! (new ClaimTicket)($this->ticket, $user)) {
-            return null;
-        }
-
-        app(TicketAlerts::class)->assigned($this->ticket, $user, null);
-
-        return $user->id;
-    }
-
-    private function queue(?Sector $sector, bool $announce): void
-    {
-        if ($sector !== null) {
-            (new TransferTicket)($this->ticket, null, $sector, announce: $announce);
-
-            return;
-        }
-
-        // Nenhum setor recebe tickets: vai para a fila geral, que o atendente sem setor e os supervisores veem.
-        $moved = Ticket::query()->whereKey($this->ticket->id)->where('status', TicketStatus::PENDENTE->value)->update([
-            'status' => TicketStatus::AGUARDANDO->value,
-            'waiting_since' => now(),
-            'sla_warn_at' => null,
-            'sla_due_at' => null,
-            'sla_warned_at' => null,
-            'sla_breached_at' => null,
-            'updated_at' => now(),
-        ]) === 1;
-
-        if ($moved) {
-            TicketEvent::create(['ticket_id' => $this->ticket->id, 'type' => 'transferred', 'payload' => []]);
-            $this->ticket->refresh();
-            TicketUpdated::dispatch($this->ticket);
-            if ($announce) {
-                app(TicketAlerts::class)->queued($this->ticket);
-            }
-        }
-    }
-
-    /**
-     * O arquivo do bloco é a fonte (disco `local`, pasta `bot/`); o anexo é uma cópia no disco de mídia, que a purga de 90 dias
-     * pode apagar sem tocar na fonte.
-     */
-    private function copyToMediaDisk(Filesystem $source, string $path): ?string
-    {
-        $stream = $source->readStream($path);
-        $key = 'outbound/'.now()->format('Y/m').'/'.Str::uuid()->toString().'.'.pathinfo($path, PATHINFO_EXTENSION);
-
-        if ($stream === null || Message::mediaDisk()->writeStream($key, $stream) === false) {
-            return null;
-        }
-
-        return $key;
     }
 }
