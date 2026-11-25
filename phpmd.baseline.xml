@@ -15,7 +15,6 @@
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Bot/BotEngine.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Bot/Effects/LiveEffects.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Inbox/IngestMessage.php"/>
-  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Inbox/Presence.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Inbox/SendTicketMessage.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Reset/ResetSystem.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Update/ApplyUpdate.php"/>
