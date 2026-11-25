@@ -2,6 +2,7 @@
 
 namespace App\Services\Inbox;
 
+use App\Models\Contact;
 use App\Models\Ticket;
 use App\Models\User;
 
@@ -22,6 +23,17 @@ final class ConversationHandoff
         if ($canReply && $draft !== '') {
             session()->flash(self::DRAFT, $draft);
         }
+    }
+
+    /** Já havia conversa aberta: o aviso diz de quem é e, se o usuário pode responder, o texto digitado vai para o campo dele. */
+    public static function flashExisting(User $user, Ticket $ticket, Contact $contact, string $text): void
+    {
+        $owner = $ticket->assignee->name ?? 'a fila';
+        $text = trim($text);
+        // Sem texto digitado (o desvio do `open` leva direto ao ticket) não há mensagem para levar ao campo.
+        $carriesText = $text !== '' && $user->can('reply', $ticket);
+
+        self::flash('Já existe uma conversa aberta com '.$contact->label().' (de '.$owner.').'.($carriesText ? ' Sua mensagem está no campo de resposta.' : ''), $text, $carriesText);
     }
 
     /** @return array{notice: ?string, draft: ?string} o texto só sai se o usuário ainda pode responder o ticket */

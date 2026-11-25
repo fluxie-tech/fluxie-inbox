@@ -2,20 +2,15 @@
 
 namespace App\Livewire\Inbox;
 
-use App\Actions\Contacts\CreateContact;
+use App\Actions\Inbox\ResolveTypedContact;
 use App\Actions\Inbox\StartConversation;
 use App\Models\Channel;
 use App\Models\Contact;
-use App\Models\Sector;
-use App\Models\Ticket;
 use App\Models\User;
 use App\Services\Inbox\ConversationHandoff;
 use App\Services\Inbox\ConversationNotStarted;
-use App\Services\Inbox\WhatsAppNumber;
-use App\Support\PhoneFormat;
+use App\Services\Inbox\NewConversationChoices;
 use Illuminate\Contracts\View\View;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -47,11 +42,11 @@ class NewConversation extends Component
         $this->contactId = null;
 
         if ($contactId !== null) {
-            $open = Ticket::query()->open()->readableBy($this->user())->where('contact_id', $contactId)->orderByDesc('opened_at')->orderByDesc('id')->first();
+            $open = $this->choices()->openTicket($this->user(), $contactId);
 
             // Já há conversa aberta que o usuário vê: não faz sentido pedir canal, setor e mensagem; leva direto a ela.
             if ($open !== null) {
-                $this->flashExisting($open, Contact::query()->findOrFail($contactId));
+                ConversationHandoff::flashExisting($this->user(), $open, Contact::query()->findOrFail($contactId), $this->text);
                 $this->redirectRoute('inbox', ['ticket' => $open->id]);
 
                 return;
@@ -81,7 +76,7 @@ class NewConversation extends Component
         $this->contactId = null;
     }
 
-    public function submit(StartConversation $start, CreateContact $createContact, WhatsAppNumber $number): void
+    public function submit(StartConversation $start, ResolveTypedContact $typed): void
     {
         $this->failure = null;
         $this->resetErrorBag();
@@ -91,11 +86,11 @@ class NewConversation extends Component
             ['channelId.required' => 'Escolha o canal.', 'sectorId.required' => 'Escolha o setor.', 'text.required' => 'Escreva a primeira mensagem.', 'text.max' => 'A mensagem passa de '.StartConversation::TEXT_LIMIT.' caracteres.'],
         );
 
-        $channel = Channel::query()->findOrFail($this->channelId);
-        $sector = Sector::query()->findOrFail($this->sectorId);
+        $channel = $this->choices()->channel($this->channelId);
+        $sector = $this->choices()->sector($this->sectorId);
 
         try {
-            $contact = $this->contactId !== null ? Contact::query()->findOrFail($this->contactId) : $this->newContact($number, $createContact, $channel);
+            $contact = $this->contactId !== null ? Contact::query()->findOrFail($this->contactId) : $this->typedContact($typed, $channel);
 
             if ($contact === null) {
                 return;
@@ -109,7 +104,7 @@ class NewConversation extends Component
         }
 
         if (! $result['created']) {
-            $this->flashExisting($result['ticket'], $contact);
+            ConversationHandoff::flashExisting($this->user(), $result['ticket'], $contact, $this->text);
         }
 
         $this->redirectRoute('inbox', ['ticket' => $result['ticket']->id]);
@@ -117,77 +112,30 @@ class NewConversation extends Component
 
     public function render(): View
     {
-        $user = $this->user();
-
-        return view('livewire.inbox.new-conversation', [
-            'contact' => $this->contactId === null ? null : Contact::query()->find($this->contactId),
-            'matches' => $this->contactId === null && mb_strlen(trim($this->search)) >= 2 ? Contact::query()->with('tags')->search($this->search)->limit(8)->get() : new Collection,
-            'channels' => Channel::query()->where('active', true)->orderBy('name')->get(),
-            'sectors' => $this->sectorsFor($user),
-        ]);
+        return view('livewire.inbox.new-conversation', $this->choices()->forView($this->user(), $this->contactId, $this->search));
     }
 
-    /** Telefone digitado: confere no WhatsApp antes de cadastrar, para um número sem conta não virar contato. */
-    private function newContact(WhatsAppNumber $number, CreateContact $createContact, Channel $channel): ?Contact
+    /** Telefone digitado vira contato (ou o que já existia); telefone inválido vira erro do campo e devolve nulo. */
+    private function typedContact(ResolveTypedContact $typed, Channel $channel): ?Contact
     {
-        $waId = PhoneFormat::toWaId($this->phone);
+        $result = $typed($this->phone, $this->name, $channel);
 
-        if ($waId === null) {
-            $this->addError('phone', 'Telefone inválido: informe o DDD e o número.');
-
-            return null;
+        if ($result['phoneError'] !== null) {
+            $this->addError('phone', $result['phoneError']);
         }
 
-        $known = Contact::query()->whereIn('wa_id', PhoneFormat::variants($waId))->first();
-
-        if ($known !== null) {
-            return $known;
-        }
-
-        $number->assertExists($waId, $channel);
-
-        try {
-            return $createContact($this->phone, $this->name)['contact'];
-        } catch (ValidationException $e) {
-            $this->addError('phone', $e->validator->errors()->first('phone') ?: 'Telefone inválido.');
-
-            return null;
-        }
-    }
-
-    /** Já havia conversa aberta: o aviso diz de quem é e, se o usuário pode responder, o texto digitado vai para o campo dele. */
-    private function flashExisting(Ticket $ticket, Contact $contact): void
-    {
-        $owner = $ticket->assignee->name ?? 'a fila';
-        $text = trim($this->text);
-        // Sem texto digitado (o desvio do `open` leva direto ao ticket) não há mensagem para levar ao campo.
-        $carriesText = $text !== '' && $this->user()->can('reply', $ticket);
-
-        ConversationHandoff::flash('Já existe uma conversa aberta com '.$contact->label().' (de '.$owner.').'.($carriesText ? ' Sua mensagem está no campo de resposta.' : ''), $text, $carriesText);
+        return $result['contact'];
     }
 
     /** Canal do ticket mais recente do contato (ou o único ativo) e o setor único do atendente já vêm preenchidos. */
     private function preselect(?Contact $contact): void
     {
-        $active = Channel::query()->where('active', true)->get();
-        $latest = $contact === null ? null : Ticket::query()->where('contact_id', $contact->id)->latest('opened_at')->first()?->channel_id;
-
-        $this->channelId = $latest !== null && $active->contains('id', $latest) ? $latest : ($active->count() === 1 ? $active->first()?->id : null);
-
-        $sectors = $this->sectorsFor($this->user());
-        $this->sectorId = $sectors->count() === 1 ? $sectors->first()?->id : null;
+        ['channelId' => $this->channelId, 'sectorId' => $this->sectorId] = $this->choices()->defaults($this->user(), $contact);
     }
 
-    /**
-     * Setores em que o usuário pode iniciar: supervisor e admin, todos que recebem tickets; atendente, os que cobre.
-     *
-     * @return Collection<int, Sector>
-     */
-    private function sectorsFor(User $user): Collection
+    private function choices(): NewConversationChoices
     {
-        $query = $user->canSeeAllSectors() ? Sector::query() : $user->sectors();
-
-        return $query->receivingTickets()->orderBy('menu_order')->get();
+        return app(NewConversationChoices::class);
     }
 
     private function user(): User
