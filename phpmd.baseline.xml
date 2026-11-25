@@ -3,6 +3,5 @@
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Automation/Editor.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Contacts/ContactCard.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/History/Index.php"/>
-  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Settings/Users.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Setup/FirstSteps.php"/>
 </phpmd-baseline>

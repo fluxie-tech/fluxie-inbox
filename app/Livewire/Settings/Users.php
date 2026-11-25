@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Settings;
 
+use App\Actions\Users\SaveUser;
 use App\Enums\AuditAction;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
@@ -13,8 +14,6 @@ use App\Services\Media\AvatarImage;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -99,7 +98,7 @@ class Users extends Component
         $this->resetForm();
     }
 
-    public function save(): void
+    public function save(SaveUser $save): void
     {
         $this->authorize('viewAny', User::class);
 
@@ -114,7 +113,7 @@ class Users extends Component
         $target = $this->editingId === null ? null : User::query()->findOrFail($this->editingId);
 
         $this->authorizeSave($target, $role);
-        $this->validateForm($target);
+        $this->validate(SaveUser::rules($target), SaveUser::MESSAGES);
 
         if ($target?->isLastActiveAdmin() && $role !== UserRole::ADMIN) {
             $this->addError('role', 'Este é o único administrador ativo. Promova outra pessoa antes de rebaixá-lo.');
@@ -122,7 +121,12 @@ class Users extends Component
             return;
         }
 
-        $this->persist($target ?? new User, $role, $target === null);
+        $save($target, $role, [
+            'name' => $this->name,
+            'email' => $this->email,
+            'can_transfer' => $this->canTransfer,
+            'password' => $this->password,
+        ], $this->sectorIds, $this->user());
         $this->resetForm();
     }
 
@@ -139,87 +143,6 @@ class Users extends Component
 
         if ($role !== $target->role) {
             $this->authorize('assignRole', [User::class, $role]);
-        }
-    }
-
-    private function validateForm(?User $target): void
-    {
-        $this->validate([
-            'name' => ['required', 'string', 'max:120'],
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($target?->id)],
-            'password' => [$target === null ? 'required' : 'nullable', 'string', Password::default()],
-            'sectorIds' => ['array'],
-            'sectorIds.*' => ['integer', Rule::exists('sectors', 'id')],
-        ], [
-            'name.required' => 'Informe o nome.',
-            'email.required' => 'Informe o e-mail.',
-            'email.email' => 'E-mail inválido.',
-            'email.unique' => 'Já existe um usuário com esse e-mail.',
-            'password.required' => 'Defina uma senha.',
-            'password.min' => 'A senha precisa ter ao menos 8 caracteres.',
-        ]);
-    }
-
-    private function persist(User $user, UserRole $role, bool $creating): void
-    {
-        $user->forceFill([
-            'name' => trim($this->name),
-            'email' => trim($this->email),
-            'role' => $role,
-            'can_transfer' => $this->canTransfer,
-        ]);
-
-        if ($creating) {
-            $user->forceFill(['active' => true, 'email_verified_at' => now()]);
-        }
-
-        if ($this->password !== '') {
-            $user->password = $this->password;
-        }
-
-        // O que mudou só se sabe antes de gravar.
-        $dirty = array_keys($user->getDirty());
-        $oldRole = $creating ? null : $user->getOriginal('role');
-        $sectorChanges = [];
-
-        DB::transaction(function () use ($user, &$sectorChanges): void {
-            $user->save();
-            $sectorChanges = $user->sectors()->sync($this->sectorIds);
-        });
-
-        $sectorsChanged = ($sectorChanges['attached'] ?? []) !== [] || ($sectorChanges['detached'] ?? []) !== [];
-
-        $this->audit($user, $creating, $dirty, $oldRole, $sectorsChanged);
-    }
-
-    /**
-     * Auditoria do sistema: criar grava só a criação; editar grava os campos alterados, a mudança de papel e a definição de senha
-     * (nunca a senha). Sem mudança nenhuma, não grava.
-     *
-     * @param  list<string>  $dirty
-     */
-    private function audit(User $user, bool $creating, array $dirty, mixed $oldRole, bool $sectorsChanged): void
-    {
-        $actor = $this->user();
-
-        if ($creating) {
-            Auditor::record(AuditAction::UserCreated, $actor, $user->name, ['role' => $user->role->value]);
-
-            return;
-        }
-
-        $fields = [...array_values(array_intersect(['name', 'email', 'can_transfer'], $dirty)), ...($sectorsChanged ? ['sectors'] : [])];
-
-        if ($fields !== []) {
-            Auditor::record(AuditAction::UserUpdated, $actor, $user->name, ['fields' => $fields]);
-        }
-
-        if (in_array('role', $dirty, true) && $oldRole instanceof UserRole) {
-            Auditor::record(AuditAction::UserRoleChanged, $actor, $user->name, ['from' => $oldRole->value, 'to' => $user->role->value]);
-        }
-
-        if (in_array('password', $dirty, true)) {
-            Auditor::record(AuditAction::UserPasswordSet, $actor, $user->name);
         }
     }
 
