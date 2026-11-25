@@ -22,7 +22,7 @@ class BotEntry
     /** Mensagem mais velha que isto é histórico reprocessado, não cliente esperando. */
     private const FRESH_SECONDS = 300;
 
-    public function __construct(private readonly BotEngine $engine) {}
+    public function __construct(private readonly BotEngine $engine, private readonly LiveSessions $sessions) {}
 
     /** A versão publicada do workflow ativo do canal, ou nulo quando o canal não usa bot. */
     public function versionFor(Channel $channel): ?WorkflowVersion
@@ -78,7 +78,7 @@ class BotEntry
         $version = $this->versionFor($ticket->channel()->firstOrFail());
 
         if ($version === null) {
-            $this->engine->release($ticket);
+            $this->sessions->release($ticket);
 
             return;
         }

@@ -52,8 +52,9 @@ final class BotRun
         $this->session->vars = [...$this->session->vars, $key => $value];
     }
 
-    public function say(string $template): void
+    /** @param array<string, string> $extra */
+    public function say(string $template, array $extra = []): void
     {
-        $this->fx->say(Vars::render($template, $this->vars()));
+        $this->fx->say(Vars::render($template, [...$this->vars(), ...$extra]));
     }
 }
