@@ -240,10 +240,10 @@ class EngineExtraNodesTest extends TestCase
         Storage::fake('local');
         Storage::fake('media');
         config(['media.disk' => 'media']);
-        // Existe no disco, fora de `bot/`: só a trava do `..` impede o envio.
+        // 'bot/../segredo.txt' o Flysystem normaliza para 'segredo.txt', que existe fora de `bot/`: só a trava do `..` impede o envio.
         Storage::disk('local')->put('segredo.txt', 'segredo');
         $version = $this->line([
-            ['m', 'midia', ['path' => '../segredo.txt']],
+            ['m', 'midia', ['path' => 'bot/../segredo.txt']],
             ['f', 'mensagem', ['texto' => 'Fim']],
         ]);
 
