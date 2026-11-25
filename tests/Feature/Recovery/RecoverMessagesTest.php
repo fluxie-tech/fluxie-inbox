@@ -8,10 +8,13 @@ use App\Models\Channel;
 use App\Models\Message;
 use App\Models\Ticket;
 use App\Models\WahaEvent;
+use App\Services\Inbox\InboundTicket;
 use App\Services\Inbox\IngestMessage;
+use App\Services\Inbox\PanelEcho;
 use App\Services\Inbox\RecoverMessages;
 use App\Services\Inbox\RecoveryResult;
 use App\Services\Inbox\ResolveContact;
+use App\Services\Inbox\StoreInbound;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -86,7 +89,7 @@ class RecoverMessagesTest extends TestCase
 
     public function test_mensagem_que_falha_nao_derruba_as_outras(): void
     {
-        $this->app->bind(IngestMessage::class, fn () => new class(app(ResolveContact::class)) extends IngestMessage
+        $this->app->bind(IngestMessage::class, fn () => new class(app(ResolveContact::class), app(PanelEcho::class), app(InboundTicket::class), app(StoreInbound::class)) extends IngestMessage
         {
             public function __invoke(WahaEvent $event): ?Message
             {
