@@ -7,7 +7,7 @@ use App\Events\TicketUpdated;
 use App\Models\Ticket;
 use App\Models\TicketEvent;
 use App\Models\User;
-use App\Services\Alerts\AlertDispatcher;
+use App\Services\Alerts\TicketAlerts;
 use Illuminate\Support\Facades\DB;
 
 class ReassignTicket
@@ -49,7 +49,7 @@ class ReassignTicket
 
             if ($changed) {
                 TicketUpdated::dispatch($ticket);
-                app(AlertDispatcher::class)->assigned($ticket, $to, $actor);
+                app(TicketAlerts::class)->assigned($ticket, $to, $actor);
             }
 
             return $changed;

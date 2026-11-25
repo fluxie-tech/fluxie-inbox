@@ -22,7 +22,7 @@ use App\Models\Ticket;
 use App\Models\TicketEvent;
 use App\Models\TicketNote;
 use App\Models\User;
-use App\Services\Alerts\AlertDispatcher;
+use App\Services\Alerts\TicketAlerts;
 use App\Services\Inbox\AttachmentRules;
 use App\Services\Inbox\BusinessHours;
 use App\Services\Inbox\Presence;
@@ -166,7 +166,7 @@ final class LiveEffects implements BotEffects
         $assigned = $user !== null ? $this->assign($user) : null;
 
         if ($user !== null && $assigned === null) {
-            app(AlertDispatcher::class)->queued($this->ticket->refresh());
+            app(TicketAlerts::class)->queued($this->ticket->refresh());
         }
 
         return $assigned;
@@ -233,7 +233,7 @@ final class LiveEffects implements BotEffects
             return null;
         }
 
-        app(AlertDispatcher::class)->assigned($this->ticket, $user, null);
+        app(TicketAlerts::class)->assigned($this->ticket, $user, null);
 
         return $user->id;
     }
@@ -262,7 +262,7 @@ final class LiveEffects implements BotEffects
             $this->ticket->refresh();
             TicketUpdated::dispatch($this->ticket);
             if ($announce) {
-                app(AlertDispatcher::class)->queued($this->ticket);
+                app(TicketAlerts::class)->queued($this->ticket);
             }
         }
     }

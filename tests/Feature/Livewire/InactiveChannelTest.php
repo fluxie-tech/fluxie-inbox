@@ -15,7 +15,7 @@ use App\Models\Message;
 use App\Models\QuickReply;
 use App\Models\Ticket;
 use App\Models\User;
-use App\Services\Alerts\AlertDispatcher;
+use App\Services\Alerts\ChannelAlerts;
 use App\Services\Inbox\SendFailure;
 use App\Support\ConnectionState;
 use App\Support\SidebarState;
@@ -49,7 +49,7 @@ class InactiveChannelTest extends TestCase
         $channel = Channel::factory()->connected()->create(['active' => false]);
         $channel->status = ChannelStatus::STOPPED;
 
-        app(AlertDispatcher::class)->channelChanged($channel, ChannelStatus::WORKING);
+        app(ChannelAlerts::class)->channelChanged($channel, ChannelStatus::WORKING);
 
         Notification::assertNothingSent();
         $this->assertCount(0, ConnectionState::down());

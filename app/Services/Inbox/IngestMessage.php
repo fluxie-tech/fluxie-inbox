@@ -16,7 +16,7 @@ use App\Models\Message;
 use App\Models\Ticket;
 use App\Models\TicketEvent;
 use App\Models\WahaEvent;
-use App\Services\Alerts\AlertDispatcher;
+use App\Services\Alerts\TicketAlerts;
 use App\Services\Bot\BotEntry;
 use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -293,7 +293,7 @@ class IngestMessage
 
         // Recuperação não toca o som de fila por ticket: o aviso é um só, no fim (ver `RecoverMessagesJob`).
         if ($ticket->status === TicketStatus::AGUARDANDO && $mode === IngestMode::LIVE) {
-            app(AlertDispatcher::class)->queued($ticket);
+            app(TicketAlerts::class)->queued($ticket);
         }
 
         return $ticket;

@@ -7,7 +7,7 @@ use App\Jobs\DrainOutboxJob;
 use App\Jobs\ImportHistoryJob;
 use App\Jobs\RecoverMessagesJob;
 use App\Models\Channel;
-use App\Services\Alerts\AlertDispatcher;
+use App\Services\Alerts\ChannelAlerts;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 
@@ -43,7 +43,7 @@ class ChannelObserver
         }
 
         if ($from !== null) {
-            app(AlertDispatcher::class)->channelChanged($channel, $from);
+            app(ChannelAlerts::class)->channelChanged($channel, $from);
         }
     }
 

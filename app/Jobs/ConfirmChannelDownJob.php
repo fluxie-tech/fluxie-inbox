@@ -3,7 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Channel;
-use App\Services\Alerts\AlertDispatcher;
+use App\Services\Alerts\ChannelAlerts;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -20,7 +20,7 @@ class ConfirmChannelDownJob implements ShouldQueue
         $this->onQueue('realtime');
     }
 
-    public function handle(AlertDispatcher $alerts): void
+    public function handle(ChannelAlerts $alerts): void
     {
         $channel = Channel::query()->find($this->channelId);
 
@@ -29,7 +29,7 @@ class ConfirmChannelDownJob implements ShouldQueue
         }
 
         // `down_since` é o início da queda de agora: se for mais novo que a tolerância, este job é de uma queda anterior.
-        if ($channel->down_since === null || $channel->down_since->gt(now()->subSeconds(AlertDispatcher::GRACE_SECONDS))) {
+        if ($channel->down_since === null || $channel->down_since->gt(now()->subSeconds(ChannelAlerts::GRACE_SECONDS))) {
             return;
         }
 
