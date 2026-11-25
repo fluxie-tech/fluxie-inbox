@@ -4,7 +4,6 @@
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Contacts/ContactCard.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/History/Index.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Inbox/NewConversation.php"/>
-  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Inbox/Transcript.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Settings/Backups.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Settings/ChannelCard.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Settings/System.php"/>

@@ -2,24 +2,15 @@
 
 namespace App\Livewire\Inbox;
 
-use App\Actions\Contacts\CreateContact;
+use App\Actions\Inbox\ContactFromCard;
 use App\Actions\Inbox\MarkTicketSeenByAgent;
-use App\Events\TicketUpdated;
 use App\Jobs\MarkTicketSeenJob;
-use App\Models\Contact;
-use App\Models\Message;
-use App\Models\Ticket;
-use App\Models\TicketEvent;
-use App\Models\TicketNote;
 use App\Models\User;
-use App\Services\Inbox\SpecialContent;
-use App\Support\PhoneFormat;
-use Carbon\CarbonImmutable;
+use App\Services\Inbox\TicketLookup;
+use App\Services\Inbox\TicketNoteTrash;
+use App\Services\Inbox\TranscriptQuery;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Renderless;
@@ -31,11 +22,6 @@ use Livewire\Component;
  */
 class Transcript extends Component
 {
-    private const LIMIT = 200;
-
-    /** Quanto tempo o "Desfazer" de uma nota apagada vale. */
-    private const UNDO_SECONDS = 60;
-
     #[Locked]
     public int $ticketId;
 
@@ -82,7 +68,7 @@ class Transcript extends Component
             return;
         }
 
-        $ticket = Ticket::query()->readableBy($user)->find($this->ticketId);
+        $ticket = app(TicketLookup::class)->readable($user, $this->ticketId);
 
         if ($ticket !== null) {
             app(MarkTicketSeenByAgent::class)($ticket, $user);
@@ -97,9 +83,9 @@ class Transcript extends Component
      * Só o autor apaga a própria nota; fica o rastro na auditoria do ticket. Sem confirmação: o aviso oferece "Desfazer" por 60 s
      * (a nota fica guardada no cache do usuário sob um token aleatório).
      */
-    public function deleteNote(int $noteId): void
+    public function deleteNote(int $noteId, TicketNoteTrash $trash): void
     {
-        $note = TicketNote::query()->where('ticket_id', $this->ticketId)->find($noteId);
+        $note = $trash->find($this->ticketId, $noteId);
 
         if ($note === null) {
             return;
@@ -107,117 +93,46 @@ class Transcript extends Component
 
         $this->authorize('delete', $note);
 
-        $token = Str::random(32);
-        Cache::put(self::undoKey($token), ['ticket_id' => $note->ticket_id, 'user_id' => $note->user_id, 'origin' => $note->origin->value, 'body' => $note->body, 'created_at' => $note->created_at->toIso8601String()], self::UNDO_SECONDS);
+        $user = auth()->user();
+        assert($user instanceof User);
 
-        $note->delete();
-        TicketEvent::create(['ticket_id' => $this->ticketId, 'type' => 'note_deleted', 'actor_user_id' => auth()->id(), 'payload' => ['note_id' => $noteId]]);
-        $this->touchTicket();
+        $token = $trash->delete($note, $user);
 
         Flux::toast(text: 'Nota apagada.', duration: 8000, action: ['label' => 'Desfazer', 'event' => 'undo-note-delete', 'params' => ['token' => $token]]);
     }
 
     /** O "Desfazer" do aviso: recria a nota idêntica (mesmo autor, origem e horário), uma vez só, e só neste ticket. */
     #[On('undo-note-delete')]
-    public function restoreNote(string $token): void
+    public function restoreNote(string $token, TicketNoteTrash $trash): void
     {
-        // O evento chega a todo painel aberto: só gasta o token quem é do ticket certo, e `forget` devolve true a um único chamador.
-        $saved = Cache::get(self::undoKey($token));
-
-        $createdAt = is_array($saved) ? ($saved['created_at'] ?? null) : null;
-
         $user = auth()->user();
 
-        // Quem apagou pode ter sido inativado, ou o ticket ter sumido (mesclado, apagado), na janela de 60 s: nada é recriado e o token não é gasto.
-        if (! is_array($saved) || ($saved['ticket_id'] ?? null) !== $this->ticketId || ! is_string($createdAt)
-            || ! $user instanceof User || ! Ticket::query()->readableBy($user)->whereKey($this->ticketId)->exists()
-            || ! Cache::forget(self::undoKey($token))) {
-            return;
-        }
-
-        $note = new TicketNote(['ticket_id' => $this->ticketId, 'user_id' => $saved['user_id'], 'origin' => $saved['origin'], 'body' => $saved['body']]);
-        $note->created_at = CarbonImmutable::parse($createdAt);
-        $note->save();
-
-        TicketEvent::create(['ticket_id' => $this->ticketId, 'type' => 'note_restored', 'actor_user_id' => auth()->id(), 'payload' => ['note_id' => $note->id]]);
-        $this->touchTicket();
-    }
-
-    /** Por usuário: o token de outra pessoa não acha nada. */
-    private static function undoKey(string $token): string
-    {
-        return 'undo-note:'.auth()->id().':'.$token;
-    }
-
-    private function touchTicket(): void
-    {
-        $ticket = Ticket::find($this->ticketId);
-
-        if ($ticket !== null) {
-            TicketUpdated::dispatch($ticket);
+        if ($user instanceof User) {
+            $trash->restore($user, $this->ticketId, $token);
         }
     }
 
     /** "Adicionar aos contatos" no cartão de contato recebido: cria o contato (ou reaproveita o que já existe) sem duplicar. */
-    public function addContact(int $messageId, int $index): void
+    public function addContact(int $messageId, int $index, ContactFromCard $fromCard): void
     {
-        $this->contactFromCard($messageId, $index);
+        $fromCard($this->ticketId, $messageId, $index);
     }
 
     /** "Conversar" no cartão: garante o contato e abre a janela Nova conversa com ele. */
-    public function chatWith(int $messageId, int $index): void
+    public function chatWith(int $messageId, int $index, ContactFromCard $fromCard): void
     {
-        $contact = $this->contactFromCard($messageId, $index);
+        $contact = $fromCard($this->ticketId, $messageId, $index);
 
         if ($contact !== null) {
             $this->dispatch('start-conversation', contactId: $contact->id);
         }
     }
 
-    /** O cartão `$index` de uma mensagem de contato DESTE ticket (o id vem do navegador), já como contato cadastrado. */
-    private function contactFromCard(int $messageId, int $index): ?Contact
-    {
-        $message = Message::query()->where('ticket_id', $this->ticketId)->where('type', 'contact')->find($messageId);
-        $card = $message === null ? null : (SpecialContent::contacts($message->body)[$index] ?? null);
-        $phone = $card['phones'][0] ?? '';
-
-        if ($card === null || PhoneFormat::toWaId($phone) === null) {
-            return null;
-        }
-
-        return app(CreateContact::class)($phone, $card['name'])['contact'];
-    }
-
-    public function render(): View
+    public function render(TranscriptQuery $query): View
     {
         $user = auth()->user();
         assert($user instanceof User);
 
-        // O filho não confia no pai: confere de novo se o usuário pode ver este ticket.
-        $ticket = Ticket::query()->readableBy($user)->find($this->ticketId);
-
-        $messages = $this->recent($ticket);
-
-        // Só as notas desde a mensagem mais antiga da página, para a conversa não ganhar notas soltas do passado.
-        $oldest = $messages->first()?->sent_at;
-        $notes = $ticket === null ? collect() : TicketNote::query()->where('ticket_id', $ticket->id)->with('author')
-            ->when($oldest !== null, fn ($query) => $query->where('created_at', '>=', $oldest))
-            ->orderBy('created_at')->limit(self::LIMIT)->get();
-
-        return view('livewire.inbox.messages', ['messages' => $messages, 'notes' => $notes]);
-    }
-
-    /**
-     * As últimas mensagens do ticket, da mais antiga para a mais nova.
-     *
-     * @return Collection<int, Message>
-     */
-    private function recent(?Ticket $ticket): Collection
-    {
-        if ($ticket === null) {
-            return new Collection;
-        }
-
-        return $ticket->messages()->with(['reactions', 'edits', 'ticket.channel', 'contact'])->orderByDesc('sent_at')->orderByDesc('id')->limit(self::LIMIT)->get()->reverse()->values();
+        return view('livewire.inbox.messages', $query->for($user, $this->ticketId));
     }
 }

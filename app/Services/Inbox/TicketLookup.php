@@ -20,6 +20,12 @@ final class TicketLookup
         return Ticket::query()->readableBy($user)->findOrFail($ticketId);
     }
 
+    /** O ticket, ou nulo se não existe ou o usuário não pode vê-lo (quem chama decide o que fazer). */
+    public function readable(User $user, int $ticketId): ?Ticket
+    {
+        return Ticket::query()->readableBy($user)->find($ticketId);
+    }
+
     public function detailed(User $user, ?int $ticketId): ?Ticket
     {
         return $ticketId === null
