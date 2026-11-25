@@ -12,8 +12,8 @@ class AuditActionTest extends TestCase
 {
     public function test_todo_caso_tem_rotulo_e_grupo_conhecido(): void
     {
-        $this->assertCount(25, AuditAction::cases());
-        $this->assertSame(['Acesso', 'Usuários', 'Backup', 'Configurações'], AuditAction::groups());
+        $this->assertCount(26, AuditAction::cases());
+        $this->assertSame(['Acesso', 'Usuários', 'Backup', 'Configurações', 'Segurança'], AuditAction::groups());
 
         foreach (AuditAction::cases() as $action) {
             $this->assertNotSame('', $action->label(), $action->value);
@@ -28,6 +28,8 @@ class AuditActionTest extends TestCase
         $this->assertSame('Usuários', AuditAction::UserRoleChanged->group());
         $this->assertSame('Backup', AuditAction::RestoreFailed->group());
         $this->assertSame('Configurações', AuditAction::RetentionPurgeRequested->group());
+        $this->assertSame('Segurança', AuditAction::CspViolation->group());
+        $this->assertSame('Violação da CSP', AuditAction::CspViolation->label());
     }
 
     public function test_toda_acao_vira_frase_em_portugues_sem_json_nem_segredo(): void
@@ -58,6 +60,7 @@ class AuditActionTest extends TestCase
         $this->assertSame('Ana Souza <ana@fluxie.test> mudou o papel de Beto: '.UserRole::ATENDENTE->label().' → '.UserRole::SUPERVISOR->label(), $text(AuditAction::UserRoleChanged, 'Beto', ['from' => 'atendente', 'to' => 'supervisor']));
         $this->assertSame('Ana Souza <ana@fluxie.test> alterou o usuário Beto (nome, setores)', $text(AuditAction::UserUpdated, 'Beto', ['fields' => ['name', 'sectors']]));
         $this->assertSame('Ana Souza <ana@fluxie.test> criou o usuário Beto ('.UserRole::ATENDENTE->label().')', $text(AuditAction::UserCreated, 'Beto', ['role' => 'atendente']));
+        $this->assertSame('Navegador bloqueou https://evil.test/x.js (script-src-elem) em https://app.test/inbox', $text(AuditAction::CspViolation, 'script-src-elem', ['blocked' => 'https://evil.test/x.js', 'document' => 'https://app.test/inbox'], 'Navegador'));
     }
 
     public function test_acao_desconhecida_aparece_pelo_proprio_nome(): void

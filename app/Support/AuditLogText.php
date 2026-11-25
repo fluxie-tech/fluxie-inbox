@@ -47,6 +47,7 @@ final class AuditLogText
             AuditAction::UpdateRequested => "{$who} pediu a atualização para {$subject}",
             AuditAction::UpdateSucceeded => "Atualização para {$subject} concluída, pedida por {$who}.",
             AuditAction::UpdateReverted => trim("Atualização para {$subject} desfeita, pedida por {$who}. ".self::message($log)),
+            AuditAction::CspViolation => "{$who} bloqueou ".self::detailText($log, 'blocked')." ({$subject}) em ".self::detailText($log, 'document'),
             AuditAction::UpdateFailed => trim("Atualização para {$subject} falhou, pedida por {$who}. ".self::message($log)),
         };
     }
@@ -82,8 +83,13 @@ final class AuditLogText
 
     private static function message(AuditLog $log): string
     {
-        $message = $log->detail['message'] ?? null;
+        return self::detailText($log, 'message');
+    }
 
-        return is_string($message) ? $message : '';
+    private static function detailText(AuditLog $log, string $key): string
+    {
+        $value = $log->detail[$key] ?? null;
+
+        return is_string($value) ? $value : '';
     }
 }

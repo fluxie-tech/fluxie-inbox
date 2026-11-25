@@ -2,12 +2,14 @@
 
 use App\Http\Controllers\AvatarController;
 use App\Http\Controllers\BackupDownloadController;
+use App\Http\Controllers\CspReportController;
 use App\Http\Controllers\GoogleConnectionController;
 use App\Http\Controllers\LogoController;
 use App\Http\Controllers\MessageMediaController;
 use App\Http\Controllers\RestorePageController;
 use App\Http\Controllers\RestoreStatusController;
 use App\Http\Controllers\Webhooks\WahaWebhookController;
+use App\Http\Middleware\RedirectToSetup;
 use App\Livewire\Audit\Index as AuditIndex;
 use App\Livewire\Audit\SystemLog as AuditSystemLog;
 use App\Livewire\Automation\Editor as AutomationEditor;
@@ -29,7 +31,12 @@ use App\Livewire\Settings\Tags;
 use App\Livewire\Settings\Users;
 use App\Livewire\Setup\FirstSteps;
 use App\Livewire\Setup\Install;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 Route::redirect('/', '/inbox')->name('home');
 
@@ -37,6 +44,10 @@ Route::get('instalar', Install::class)->name('instalar');
 Route::get('primeiros-passos', FirstSteps::class)->middleware(['auth', 'can:admin'])->name('primeiros-passos');
 
 Route::post('webhooks/waha', WahaWebhookController::class)->middleware('throttle:webhook')->name('webhooks.waha');
+// Coletor das violações da CSP: o navegador envia sem cookie e fora de qualquer tela, então não abre sessão nem passa pelo assistente.
+Route::post('csp-report', CspReportController::class)->middleware('throttle:csp-report')
+    ->withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, AddQueuedCookiesToResponse::class, EncryptCookies::class, PreventRequestForgery::class, RedirectToSetup::class])
+    ->name('csp-report');
 Route::get('marca/logo', LogoController::class)->name('logo');
 
 // Fora de `auth` e da manutenção de propósito: o admin acompanha a restauração mesmo com o sistema em manutenção.
