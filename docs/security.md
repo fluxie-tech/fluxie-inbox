@@ -10,7 +10,7 @@ Linha de base de segurança do app, o que está decidido e como mudar cada contr
 | HTTPS e HSTS (1 ano) | Traefik e nginx da imagem | `includeSubDomains`; sem `preload` (ver Cabeçalhos e CSP) |
 | `X-Frame-Options`, `nosniff`, `Referrer-Policy` | nginx da imagem | |
 | Cookies `Secure`, `HttpOnly`, `SameSite=lax` | `config/session.php` | verificado no beta |
-| CSRF | Laravel e Livewire | só o webhook do WAHA é isento, e ele exige HMAC |
+| CSRF | Laravel e Livewire | só o webhook do WAHA (exige HMAC) e o `/csp-report` são isentos; o relatório de CSP é anônimo, sem sessão, com limite por IP e teto por hora |
 | Webhook do WAHA | HMAC SHA-512 (`hash_equals`), dedupe por id | 401 sem assinatura válida |
 | Autorização | `TicketPolicy` e escopo `visibleTo` | toda ação do Livewire chama `authorize` |
 | Login | Fortify, 5 tentativas por minuto por e-mail e IP e 20 por hora por e-mail, só usuário ativo | cadastro público fechado; quem sabe um e-mail pode travar o login dele por até 1 h |

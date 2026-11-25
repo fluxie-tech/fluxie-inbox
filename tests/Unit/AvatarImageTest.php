@@ -10,6 +10,15 @@ use Tests\TestCase;
 
 class AvatarImageTest extends TestCase
 {
+    private static function pngBytes(): string
+    {
+        $image = imagecreatetruecolor(10, 10);
+        ob_start();
+        imagepng($image);
+
+        return (string) ob_get_clean();
+    }
+
     private function png(int $width, int $height): string
     {
         $image = imagecreatetruecolor($width, $height);
@@ -43,6 +52,7 @@ class AvatarImageTest extends TestCase
     public static function invalidContents(): array
     {
         return [
+            'png truncado' => [substr(self::pngBytes(), 0, 5)],
             'gif' => ["GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"],
             'svg' => ['<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>'],
             'texto' => ['oi, sou texto'],

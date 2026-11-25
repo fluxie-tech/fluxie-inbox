@@ -43,7 +43,7 @@ final class LayerRules
             ->because('Enums e helpers de apoio são a base e não dependem de camadas acima.');
     }
 
-    public function test_so_servicos_e_jobs_falam_com_o_waha_client(): Rule
+    public function test_so_a_camada_de_servico_fala_com_o_waha_client(): Rule
     {
         return PHPat::rule()
             ->classes(Selector::inNamespace('App'))

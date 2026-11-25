@@ -93,7 +93,7 @@ class SidebarTest extends TestCase
         $html = $this->page(UserRole::SUPERVISOR);
 
         $this->assertSame(1, $this->linksTo($html, 'relatorios'));
-        $this->assertSame(0, $this->linksTo($html, 'auditoria'));
+        $this->assertSame(1, $this->linksTo($html, 'auditoria'));
         $this->assertSame(route('configuracoes.respostas'), $this->entry($html)?->getAttribute('href'));
         $this->assertSame(0, $this->linksTo($html, 'configuracoes.etiquetas'));
     }

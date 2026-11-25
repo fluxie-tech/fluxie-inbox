@@ -52,8 +52,20 @@ class AuditPageTest extends TestCase
     {
         $this->actingAs(User::factory()->create(['role' => UserRole::SUPERVISOR]))->get('/auditoria')
             ->assertDontSee('aria-label="Tipo de auditoria"', false)->assertDontSee(route('auditoria.sistema'));
-        $this->actingAs(User::factory()->create(['role' => UserRole::ADMIN]))->get('/auditoria')
+        $admin = $this->actingAs(User::factory()->create(['role' => UserRole::ADMIN]))->get('/auditoria')
             ->assertSee(route('auditoria.sistema'));
+        $this->assertMatchesRegularExpression(
+            '#aria-label="Tipo de auditoria".*?href="'.preg_quote(route('auditoria'), '#').'"#s',
+            $admin->getContent(),
+        );
+    }
+
+    public function test_cabecalho_do_supervisor_nao_reserva_o_espaco_das_abas(): void
+    {
+        $html = $this->actingAs(User::factory()->create(['role' => UserRole::SUPERVISOR]))->get('/auditoria')->getContent();
+
+        $this->assertStringNotContainsString('<div class="mt-3.5">', $html);
+        $this->assertMatchesRegularExpression('#<div data-page-header[^>]*pb-3\.5#', $html);
     }
 
     public function test_supervisor_ve_o_item_auditoria_no_menu(): void
