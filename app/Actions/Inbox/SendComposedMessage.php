@@ -36,7 +36,7 @@ final class SendComposedMessage
     /**
      * Só a primeira mensagem do envio cita: o texto separado ou, sem ele, o primeiro arquivo.
      *
-     * @param  list<UploadedFile>  $files
+     * @param  array<int, UploadedFile>  $files
      * @return array{error: ?string, failures: list<string>} `error` = nada foi enviado (a bandeja fica); `failures` = arquivos recusados
      */
     public function __invoke(Ticket $ticket, User $by, string $draft, array $files, ?Message $quoted): array
@@ -65,7 +65,7 @@ final class SendComposedMessage
     }
 
     /**
-     * @param  list<UploadedFile>  $files
+     * @param  array<int, UploadedFile>  $files
      */
     private function captionsFirstFile(string $draft, array $files): bool
     {
@@ -79,7 +79,7 @@ final class SendComposedMessage
     }
 
     /**
-     * @param  list<UploadedFile>  $files
+     * @param  array<int, UploadedFile>  $files
      * @return list<string> mensagens de erro dos arquivos que o servidor recusou na hora de enviar
      */
     private function sendFiles(Ticket $ticket, User $by, array $files, string $caption, ?Message $quoted): array
