@@ -104,12 +104,12 @@ Só documentação (decisão registrada em `docs/security.md`) e limpeza da pend
   `MissingImport` 2, `ErrorControlOperator` 1 (contagem de 25/11).
 - Ligar o `design.xml` (`CouplingBetweenObjects`, limite padrão 13) com **baseline** (`--baseline`/`--generate-baseline` do
   PHPMD 3) contendo as classes acima do limite, menos `App\Models\Ticket` e `App\Models\Message`, que ganham
-  `#[SuppressWarnings(CouplingBetweenObjects::class)]` com o motivo escrito (o acoplamento vem dos tipos do próprio Eloquent:
+  o doc comment `@SuppressWarnings("PHPMD.CouplingBetweenObjects")` com o motivo escrito (o acoplamento vem dos tipos do próprio Eloquent:
   relações, `Builder`, Carbon, enums). O baseline é temporário: a leva seguinte refatora as 22 e apaga o arquivo.
   As contagens (24 no design, 22 no baseline) foram medidas em 25/11 com o PHPMD 3.0.0 instalado, que só reporta acima do
-  `maximum`; regerar e conferir antes de gravar o baseline. O repositório usa o doc comment `@SuppressWarnings("PHPMD.X")`;
-  nos dois models usar o atributo `PHPMD\Attribute\SuppressWarnings` (existe na 3.x), que o `UnusedSuppression` do
-  `unusedcode.xml` confere: se a supressão não suprimir nada, ele acusa.
+  `maximum`; regerar e conferir antes de gravar o baseline. O repositório usa o doc comment `@SuppressWarnings("PHPMD.X")`, e é ele que vale nos dois models: o atributo
+  `PHPMD\Attribute\SuppressWarnings` importaria um pacote de require-dev em `app/` (o `ProductionDependenciesTest` reprova).
+  O `UnusedSuppression` do `unusedcode.xml` confere o doc comment: se a supressão não suprimir nada, ele acusa.
 - `naming.xml` fica de fora (238 dos 241 avisos são `ShortVariable` como `$q`, `$e`), anotado no `phpmd.xml`.
 - O comando do CI, do `composer.json` (`complexity`) e do portão 7 no `CLAUDE.md` passam a usar o baseline.
 
@@ -132,8 +132,10 @@ Só documentação (decisão registrada em `docs/security.md`) e limpeza da pend
 
 - Script em `.github/scripts/` (Node, como o `npm-audit.mjs`), com teste em `tests/js/`.
 - Olha só as migrations **adicionadas** no PR (diff contra a base) e só o corpo do `up()`.
-- Reprova quando encontra `dropColumn`, `dropColumns`, `renameColumn`, `->change()`, `Schema::drop`, `Schema::dropIfExists`,
-  `Schema::rename`. `dropForeign` e `dropIndex` não contam (não quebram o código da versão anterior). Passa se a mesma
+- Reprova quando encontra `dropColumn`, `dropColumns`, `renameColumn`, `->change()` (com ou sem espaço), `Schema::drop`,
+  `Schema::dropIfExists`, `Schema::rename`, `->drop(`, `->dropIfExists(`, `->rename(` (cobre `Schema::connection(...)`) e os
+  helpers do Blueprint `dropConstrainedForeignId(For)`, `dropTimestamps(Tz)`, `dropSoftDeletes(Tz)`, `dropMorphs`,
+  `dropNullableMorphs`, `dropRememberToken`. SQL cru em string não é analisado. `dropForeign` e `dropIndex` não contam (não quebram o código da versão anterior). Passa se a mesma
   instrução tiver, na linha anterior ou na mesma, um comentário `// contract: <motivo>` (motivo não vazio).
 - *Decisão minha:* passo próprio dentro do job `static` (que já é check obrigatório da `main`; um job novo seria decorativo
   sem mexer no ruleset), com `if: github.event_name == 'pull_request'`. O checkout do `static` já tem `fetch-depth: 2`; no PR o

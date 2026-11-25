@@ -59,3 +59,23 @@ test('dropForeign e dropIndex passam', () => {
 test('migration sem up() devolve vazio', () => {
     assert.deepEqual(unmarkedDestructive('<?php return 1;'), []);
 });
+
+for (const [forma, op] of [
+    ["$t->dropConstrainedForeignId('a');", 'dropConstrainedForeignId'],
+    ["$t->dropConstrainedForeignIdFor(User::class);", 'dropConstrainedForeignIdFor'],
+    ['$t->dropTimestamps();', 'dropTimestamps'],
+    ['$t->dropTimestampsTz();', 'dropTimestampsTz'],
+    ['$t->dropSoftDeletes();', 'dropSoftDeletes'],
+    ['$t->dropSoftDeletesTz();', 'dropSoftDeletesTz'],
+    ["$t->dropMorphs('a');", 'dropMorphs'],
+    ["$t->dropNullableMorphs('a');", 'dropNullableMorphs'],
+    ['$t->dropRememberToken();', 'dropRememberToken'],
+    ["Schema::connection('x')->drop('t');", '->drop('],
+    ["Schema::connection('x')->dropIfExists('t');", '->dropIfExists('],
+    ["Schema::connection('x')->rename('a', 'b');", '->rename('],
+    ["$t->string('a')->change ();", '->change ()'],
+]) {
+    test(`${op} no up sem marcador reprova`, () => {
+        assert.deepEqual(unmarkedDestructive(migration(`        ${forma}`)).map((f) => f.op), [op]);
+    });
+}

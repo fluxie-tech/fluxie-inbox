@@ -15,8 +15,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use PHPMD\Attribute\SuppressWarnings;
-use PHPMD\Rule\Design\CouplingBetweenObjects;
 
 /**
  * Mensagem de uma conversa. Só a entrega e o id do WhatsApp mudam depois de criada.
@@ -49,6 +47,8 @@ use PHPMD\Rule\Design\CouplingBetweenObjects;
  * @property array{author: string, type: string, excerpt: string}|null $quoted_snapshot
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
+ *
+ * @SuppressWarnings("PHPMD.CouplingBetweenObjects") o acoplamento vem dos tipos do Eloquent (relações, builders, casts)
  */
 #[Fillable([
     'ticket_id',
@@ -77,8 +77,6 @@ use PHPMD\Rule\Design\CouplingBetweenObjects;
     'quoted_wa_message_id',
     'quoted_snapshot',
 ])]
-// O acoplamento vem dos tipos do Eloquent (relações, builders, casts).
-#[SuppressWarnings(CouplingBetweenObjects::class)]
 class Message extends Model
 {
     /**

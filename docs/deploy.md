@@ -200,8 +200,10 @@ Durante um rollback a versão anterior do código roda sobre o banco já migrado
 tabela ou coluna, nulo-permitido ou com padrão): apagar coluna ou tabela, renomear e mudar o tipo quebram a versão
 anterior. Contrair fica para um PR seguinte, depois que a versão nova rodou em todos os recursos.
 
-O CI reprova migration nova com `dropColumn`, `renameColumn`, `->change()` ou `Schema::drop`/`dropIfExists`/`rename` no
-`up()`. Quando a contração é de propósito, marque a linha (ou a anterior) com o motivo:
+O CI reprova migration nova com `dropColumn(s)`, `renameColumn`, `->change()`, `dropConstrainedForeignId(For)`,
+`dropTimestamps(Tz)`, `dropSoftDeletes(Tz)`, `dropMorphs`, `dropNullableMorphs`, `dropRememberToken`, `->drop(`/`->dropIfExists(`/
+`->rename(` (inclusive via `Schema::connection(...)`) ou `Schema::drop`/`dropIfExists`/`rename` no `up()`. `dropForeign` e `dropIndex`
+passam. SQL cru em string (`DB::statement('ALTER TABLE … DROP …')`) não é analisado: a revisão cobre. Quando a contração é de propósito, marque a linha (ou a anterior) com o motivo:
 
 ```php
 // contract: coluna sem uso desde a v1.4, nenhuma versão suportada a lê

@@ -18,8 +18,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
-use PHPMD\Attribute\SuppressWarnings;
-use PHPMD\Rule\Design\CouplingBetweenObjects;
 
 /**
  * @property int $id
@@ -46,6 +44,8 @@ use PHPMD\Rule\Design\CouplingBetweenObjects;
  * @property string|null $close_summary
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
+ *
+ * @SuppressWarnings("PHPMD.CouplingBetweenObjects") o acoplamento vem dos tipos do Eloquent (relações, builders, casts)
  */
 #[Fillable([
     'protocol',
@@ -63,8 +63,6 @@ use PHPMD\Rule\Design\CouplingBetweenObjects;
     'close_outcome',
     'close_summary',
 ])]
-// O acoplamento vem dos tipos do Eloquent (relações, builders, casts).
-#[SuppressWarnings(CouplingBetweenObjects::class)]
 class Ticket extends Model
 {
     /** @use HasFactory<TicketFactory> */

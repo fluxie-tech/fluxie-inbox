@@ -3,11 +3,18 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const DESTRUCTIVE = /dropColumns?\b|renameColumn\b|->change\(\)|Schema::dropIfExists\(|Schema::drop\(|Schema::rename\(/g;
+const DESTRUCTIVE = new RegExp([
+    String.raw`dropColumns?\b`, String.raw`renameColumn\b`, String.raw`dropConstrainedForeignId(?:For)?\b`,
+    String.raw`dropTimestamps(?:Tz)?\b`, String.raw`dropSoftDeletes(?:Tz)?\b`, String.raw`dropMorphs\b`,
+    String.raw`dropNullableMorphs\b`, String.raw`dropRememberToken\b`, String.raw`->change\s*\(\)`, String.raw`->drop\(`,
+    String.raw`->dropIfExists\(`, String.raw`->rename\(`, String.raw`Schema::dropIfExists\(`, String.raw`Schema::drop\(`,
+    String.raw`Schema::rename\(`,
+].join('|'), 'g');
 const MARKER = /\/\/ contract: +\S/;
 
 // Troca comentários e strings por espaços (mantendo as quebras de linha), para a busca e a contagem de chaves.
-// shortcut: não entende heredoc/nowdoc do PHP; as migrations do projeto não usam.
+// shortcut: não entende heredoc/nowdoc do PHP (as migrations do projeto não usam) nem SQL cru em string
+// (`DB::statement('ALTER TABLE … DROP …')` não é analisado); tratar na revisão se aparecer.
 function blank(source) {
     let out = '';
     for (let i = 0; i < source.length; i++) {
