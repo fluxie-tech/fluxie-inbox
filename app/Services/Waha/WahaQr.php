@@ -2,12 +2,19 @@
 
 namespace App\Services\Waha;
 
+use App\Models\Channel;
+
 /**
  * O QR de pareamento da sessão: o texto cru (o navegador o desenha com a logo) e a imagem do WAHA como reserva.
  */
 class WahaQr
 {
     public function __construct(private readonly WahaClient $client) {}
+
+    public static function forChannel(Channel $channel): self
+    {
+        return new self(new WahaClient($channel));
+    }
 
     /** O texto do QR, ou `null` se o WAHA não entregar. */
     public function raw(): ?string

@@ -12,7 +12,6 @@ use App\Services\Inbox\Presence;
 use App\Services\Inbox\SendTicketMedia;
 use App\Services\Inbox\SendTicketMessage;
 use App\Services\Inbox\Signature;
-use App\Services\Waha\WahaClient;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\RateLimiter;
 use InvalidArgumentException;
@@ -263,20 +262,7 @@ trait ComposesMessages
             return;
         }
 
-        $channel = $ticket->channel()->firstOrFail();
-        $contact = $ticket->contact()->firstOrFail();
-
-        if (! $channel->isConnected()) {
-            return;
-        }
-
-        $presence = app(Presence::class);
-        $chatId = $contact->wa_id ?? (string) $contact->lid;
-        $client = new WahaClient($channel);
-        $recording ? $presence->recording($client, $chatId, $on) : $presence->typing($client, $channel, $chatId, $on);
-
-        // Gravando ou digitando: a conversa fica marcada e o `offline` pendente (de um envio do bot, por exemplo) perde a vez.
-        $on ? $presence->humanActive($channel, $chatId) : $presence->scheduleOffline($channel);
+        app(Presence::class)->announce($ticket, $on, $recording);
     }
 
     /** Envia a gravação que o navegador acabou de subir (`voice`) como mensagem de voz do WhatsApp. */

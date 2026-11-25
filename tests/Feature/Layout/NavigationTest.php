@@ -51,7 +51,7 @@ class NavigationTest extends TestCase
     public function test_primary_por_papel(): void
     {
         $this->assertSame(['Fila', 'Contatos', 'Histórico'], $this->primaryLabels(UserRole::ATENDENTE));
-        $this->assertSame(['Fila', 'Contatos', 'Histórico', 'Relatórios', 'Automação'], $this->primaryLabels(UserRole::SUPERVISOR));
+        $this->assertSame(['Fila', 'Contatos', 'Histórico', 'Relatórios', 'Automação', 'Auditoria'], $this->primaryLabels(UserRole::SUPERVISOR));
         $this->assertSame(['Fila', 'Contatos', 'Histórico', 'Relatórios', 'Automação', 'Auditoria'], $this->primaryLabels(UserRole::ADMIN));
     }
 

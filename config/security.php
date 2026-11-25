@@ -27,6 +27,14 @@ return [
     /** Tentativas de login por hora para um mesmo e-mail, de qualquer IP (a regra de 5 por minuto por e-mail e IP segue valendo). */
     'login_per_hour_per_email' => (int) env('SECURITY_LOGIN_PER_HOUR', 20),
 
+    /** Coletor de violações da CSP (`POST /csp-report`, sem login): relatórios por minuto por IP e tamanho máximo do corpo. */
+    'csp_report_per_minute' => 30,
+
+    'csp_report_max_bytes' => 16384,
+
+    /** Teto global de violações gravadas por hora (todos os IPs); o excedente é descartado e o log avisa uma vez. */
+    'csp_report_per_hour' => 200,
+
     'send_message_per_minute' => 30,
 
     /** Reagir, editar e apagar mensagem pelo painel: por usuário, junto (cada ação chama o WhatsApp). */

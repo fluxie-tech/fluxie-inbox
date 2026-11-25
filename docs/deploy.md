@@ -194,6 +194,23 @@ manutenção e por até 24 h depois do começo.
 `php artisan up` no terminal do `app`. O sistema volta ao ar com os dados que ainda não foram apagados (o que já se foi não
 volta).
 
+### Migrations: expandir antes de contrair
+
+Durante um rollback a versão anterior do código roda sobre o banco já migrado. Por isso a migration só expande (cria
+tabela ou coluna, nulo-permitido ou com padrão): apagar coluna ou tabela, renomear e mudar o tipo quebram a versão
+anterior. Contrair fica para um PR seguinte, depois que a versão nova rodou em todos os recursos.
+
+O CI reprova migration nova com `dropColumn(s)`, `renameColumn`, `->change()`, `dropConstrainedForeignId(For)`,
+`dropTimestamps(Tz)`, `dropSoftDeletes(Tz)`, `dropMorphs`, `dropNullableMorphs`, `dropRememberToken`, `->drop(`/`->dropIfExists(`/
+`->rename(` (inclusive via `Schema::connection(...)`) ou `Schema::drop`/`dropIfExists`/`rename` no `up()`. `dropForeign` e `dropIndex`
+passam. SQL cru em string (`DB::statement('ALTER TABLE … DROP …')`) não é analisado: a revisão cobre. Quando a contração é de propósito, marque a linha (ou a anterior) com o motivo:
+
+```php
+// contract: coluna sem uso desde a v1.4, nenhuma versão suportada a lê
+$table->dropColumn('legacy_flag');
+```
+
+
 ### Não escalar o worker
 
 O `worker` roda vários processos de fila no mesmo container (um por tipo de trabalho). Não use réplicas dele: com mais de um

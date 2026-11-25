@@ -11,8 +11,8 @@ use App\Models\Channel;
 use App\Models\Ticket;
 use App\Services\Audit\Auditor;
 use App\Services\Waha\ChannelPhone;
+use App\Services\Waha\ChannelSession;
 use App\Services\Waha\WahaCalls;
-use App\Services\Waha\WahaClient;
 use App\Services\Waha\WahaQr;
 use App\Services\Waha\WahaRequestException;
 use Illuminate\Contracts\View\View;
@@ -80,7 +80,7 @@ class ChannelCard extends Component
         $this->channel->save();
 
         try {
-            (new WahaClient($this->channel))->start();
+            (new ChannelSession($this->channel))->start();
         } catch (Throwable $exception) {
             $this->fail($exception);
 
@@ -103,7 +103,7 @@ class ChannelCard extends Component
         $this->reset('errorMessage', 'qr', 'pairingCode');
 
         try {
-            (new WahaClient($this->channel))->stop();
+            (new ChannelSession($this->channel))->stop();
         } catch (Throwable $exception) {
             $this->fail($exception);
 
@@ -134,7 +134,7 @@ class ChannelCard extends Component
         $this->reset('errorMessage', 'qr', 'qrValue', 'pairingCode', 'confirming');
 
         try {
-            (new WahaClient($this->channel))->deleteSession();
+            (new ChannelSession($this->channel))->deleteSession();
         } catch (Throwable $exception) {
             $this->fail($exception);
 
@@ -152,7 +152,7 @@ class ChannelCard extends Component
         $this->channel->update(['active' => true]);
 
         try {
-            (new WahaClient($this->channel))->start();
+            (new ChannelSession($this->channel))->start();
         } catch (Throwable $exception) {
             $this->fail($exception);
 
@@ -169,7 +169,7 @@ class ChannelCard extends Component
         $this->reset('errorMessage', 'qr', 'qrValue', 'pairingCode', 'confirming');
 
         try {
-            (new WahaClient($this->channel))->deleteSession();
+            (new ChannelSession($this->channel))->deleteSession();
         } catch (Throwable $exception) {
             $this->fail($exception);
 
@@ -192,7 +192,7 @@ class ChannelCard extends Component
 
         // A sessão sai do WAHA antes da linha: uma sessão viva sem canal receberia mensagens que o app descarta.
         try {
-            (new WahaClient($this->channel))->deleteSession();
+            (new ChannelSession($this->channel))->deleteSession();
         } catch (Throwable $exception) {
             $this->confirming = null;
             $this->fail($exception);
@@ -208,7 +208,7 @@ class ChannelCard extends Component
     public function refreshStatus(): void
     {
         try {
-            $session = (new WahaClient($this->channel))->session();
+            $session = (new ChannelSession($this->channel))->session();
             $newStatus = $session['status'] ?? null;
         } catch (WahaRequestException $exception) {
             if ($exception->statusCode === 404) {
@@ -258,7 +258,7 @@ class ChannelCard extends Component
         }
 
         try {
-            $this->pairingCode = (new WahaClient($this->channel))->requestPairingCode($phone);
+            $this->pairingCode = (new ChannelSession($this->channel))->requestPairingCode($phone);
             $this->refreshQr();
         } catch (Throwable $exception) {
             $this->fail($exception);
@@ -302,7 +302,7 @@ class ChannelCard extends Component
     private function refreshQr(): void
     {
         try {
-            $waha = new WahaQr(new WahaClient($this->channel));
+            $waha = WahaQr::forChannel($this->channel);
 
             // O texto cru vai para o navegador desenhar com a logo; o PNG do WAHA só quando o texto não vem ou o desenho falhou.
             $this->qrValue = $this->preferPng ? null : $waha->raw();

@@ -2,6 +2,7 @@
 
 namespace App\Services\Media;
 
+use ErrorException;
 use Illuminate\Http\UploadedFile;
 use Intervention\Image\Laravel\Facades\Image;
 use Throwable;
@@ -33,7 +34,12 @@ class AvatarImage
             throw new InvalidImage('A imagem é maior que o limite de '.round($maxBytes / 1_048_576, 1).' MB.');
         }
 
-        $info = @getimagesizefromstring($bytes);
+        // Bytes truncados fazem o PHP emitir aviso (o Laravel o converte em ErrorException): tratado como imagem inválida.
+        try {
+            $info = getimagesizefromstring($bytes);
+        } catch (ErrorException) {
+            $info = false;
+        }
 
         if ($info === false || ! in_array($info['mime'], self::TYPES, true)) {
             throw new InvalidImage('Use uma imagem PNG, JPG ou WebP.');

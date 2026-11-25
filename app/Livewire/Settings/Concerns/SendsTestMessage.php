@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Settings\Concerns;
 
-use App\Services\Waha\WahaClient;
+use App\Services\Waha\ChannelSession;
 use Throwable;
 
 /**
@@ -35,29 +35,13 @@ trait SendsTestMessage
         }
 
         try {
-            $response = (new WahaClient($this->channel))->sendText($this->channel->normalizeChatId($phone), $this->testText);
+            $id = (new ChannelSession($this->channel))->sendTestMessage($phone, $this->testText);
         } catch (Throwable $exception) {
             $this->fail($exception);
 
             return;
         }
 
-        $this->leaveOffline();
-
-        $id = $response['id'] ?? null;
-        $this->sentMessage = 'Enviado: '.(is_string($id) ? $id : 'sem id');
-    }
-
-    /**
-     * Depois de enviar, o WAHA precisa voltar a ficar offline para o celular
-     * do atendente receber notificação — presença online segura o push.
-     */
-    private function leaveOffline(): void
-    {
-        try {
-            (new WahaClient($this->channel))->setPresence('offline');
-        } catch (Throwable) {
-            // Presença é best-effort: a mensagem já foi enviada.
-        }
+        $this->sentMessage = 'Enviado: '.($id ?? 'sem id');
     }
 }

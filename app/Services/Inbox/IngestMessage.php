@@ -49,7 +49,9 @@ class IngestMessage
             return null;
         }
 
-        if (($existing = $this->find($channel, $incoming->waId)) !== null) {
+        $existing = $this->find($channel, $incoming->waId);
+
+        if ($existing !== null) {
             return $existing;
         }
 
@@ -62,7 +64,9 @@ class IngestMessage
             $mode = IngestMode::RECOVERED;
         }
 
-        if ($incoming->fromMe && in_array($incoming->type, ['text', 'media'], true) && ($pending = $this->matchPending($channel, $contact, $incoming)) !== null) {
+        $pending = $incoming->fromMe && in_array($incoming->type, ['text', 'media'], true) ? $this->matchPending($channel, $contact, $incoming) : null;
+
+        if ($pending !== null) {
             return $this->adoptEcho($pending, $incoming);
         }
 

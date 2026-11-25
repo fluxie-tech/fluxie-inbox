@@ -47,6 +47,8 @@ use Illuminate\Support\Str;
  * @property array{author: string, type: string, excerpt: string}|null $quoted_snapshot
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
+ *
+ * @SuppressWarnings("PHPMD.CouplingBetweenObjects") o acoplamento vem dos tipos do Eloquent (relações, builders, casts)
  */
 #[Fillable([
     'ticket_id',

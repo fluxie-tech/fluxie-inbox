@@ -34,7 +34,9 @@ class ResetSystemCommand extends Command
             return self::FAILURE;
         }
 
-        if (($problem = $reset->problem(continuing: true)) !== null) {
+        $problem = $reset->problem(continuing: true);
+
+        if ($problem !== null) {
             $this->error($problem);
 
             return self::FAILURE;

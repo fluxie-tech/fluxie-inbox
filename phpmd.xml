@@ -21,10 +21,24 @@
     <!-- O padrão é 10. WahaClient é um cliente de API com um método por endpoint do WAHA. -->
     <rule ref="rulesets/codesize.xml/TooManyPublicMethods">
         <properties>
-            <property name="maxmethods" value="15"/>
+            <property name="maximum" value="15"/>
         </properties>
     </rule>
 
+    <!-- Acoplamento: limite padrão 13; as classes acima dele estão em phpmd.baseline.xml até serem reduzidas. -->
+    <rule ref="rulesets/design.xml/CouplingBetweenObjects"/>
+
     <!-- Código morto -->
     <rule ref="rulesets/unusedcode.xml"/>
+
+    <!-- Código limpo -->
+    <rule ref="rulesets/cleancode.xml">
+        <!-- Facades do Laravel (Auth::, Cache::, DB::) são acesso estático por desenho: 794 avisos sem valor. -->
+        <exclude name="StaticAccess"/>
+        <!-- Flags booleanas em parâmetros (ex.: $force = false) são idioma comum e legível aqui: 28 avisos. -->
+        <exclude name="BooleanArgumentFlag"/>
+    </rule>
+
+    <!-- naming.xml fica de fora de propósito: 238 dos 241 avisos são ShortVariable ($q, $e, $t),
+         nomes curtos idiomáticos de closures de query e catch. -->
 </ruleset>

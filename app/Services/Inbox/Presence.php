@@ -97,6 +97,24 @@ class Presence
         });
     }
 
+    /** O atendente grava ou digita: o cliente vê o aviso. Autorização e limite de chamadas ficam em quem chama. */
+    public function announce(Ticket $ticket, bool $on, bool $recording): void
+    {
+        $channel = $ticket->channel()->firstOrFail();
+        $contact = $ticket->contact()->firstOrFail();
+
+        if (! $channel->isConnected()) {
+            return;
+        }
+
+        $chatId = $contact->wa_id ?? (string) $contact->lid;
+        $client = new WahaClient($channel);
+        $recording ? $this->recording($client, $chatId, $on) : $this->typing($client, $channel, $chatId, $on);
+
+        // Gravando ou digitando: a conversa fica marcada e o `offline` pendente (de um envio do bot, por exemplo) perde a vez.
+        $on ? $this->humanActive($channel, $chatId) : $this->scheduleOffline($channel);
+    }
+
     /** "Gravando áudio…" para o cliente enquanto o atendente grava; melhor esforço, como o resto da presença. */
     public function recording(WahaClient $client, string $chatId, bool $on): void
     {

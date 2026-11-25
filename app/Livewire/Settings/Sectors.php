@@ -39,7 +39,9 @@ class Sectors extends Component
 
         $name = trim($name);
 
-        if (($error = $this->nameError($name, null)) !== null) {
+        $error = $this->nameError($name, null);
+
+        if ($error !== null) {
             $this->addError('newName', $error);
 
             return;
@@ -71,7 +73,9 @@ class Sectors extends Component
         $sector = Sector::query()->findOrFail($id);
         $name = trim($name);
 
-        if (($error = $this->nameError($name, $sector->id)) !== null) {
+        $error = $this->nameError($name, $sector->id);
+
+        if ($error !== null) {
             $this->addError('rename.'.$id, $error);
 
             return;

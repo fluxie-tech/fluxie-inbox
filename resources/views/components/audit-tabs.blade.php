@@ -2,6 +2,7 @@
 
 {{-- As duas auditorias: a de tickets (o que mudou cada atendimento) e a do sistema (acesso, usuários, backup e configurações). --}}
 {{-- Vai no slot `tabs` do x-page-header: a linha de baixo é a do cabeçalho. --}}
+@can('admin')
 <nav class="flex gap-1" aria-label="Tipo de auditoria">
     @foreach (['tickets' => ['Tickets', 'auditoria'], 'sistema' => ['Sistema', 'auditoria.sistema']] as $key => [$label, $route])
         <a
@@ -12,3 +13,4 @@
         >{{ $label }}</a>
     @endforeach
 </nav>
+@endcan

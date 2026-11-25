@@ -30,6 +30,7 @@ enum AuditAction: string
     case UpdateReverted = 'update.reverted';
     case UpdateFailed = 'update.failed';
     case CallSettingsUpdated = 'calls.settings_updated';
+    case CspViolation = 'csp.violation';
 
     public function label(): string
     {
@@ -59,6 +60,7 @@ enum AuditAction: string
             self::UpdateReverted => 'Atualização desfeita',
             self::UpdateFailed => 'Atualização falhou',
             self::CallSettingsUpdated => 'Ligações alteradas',
+            self::CspViolation => 'Violação da CSP',
         };
     }
 
@@ -69,12 +71,13 @@ enum AuditAction: string
             self::UserCreated, self::UserUpdated, self::UserRoleChanged, self::UserPasswordSet, self::UserDeactivated, self::UserActivated => 'Usuários',
             self::BackupDownloaded, self::BackupManualRequested, self::RestoreRequested, self::RestoreSucceeded, self::RestoreFailed, self::RestoreSwitched => 'Backup',
             self::GoogleConnected, self::GoogleDisconnected, self::ChannelCreated, self::ChannelDeleted, self::RetentionPurgeRequested, self::UpdateRequested, self::UpdateSucceeded, self::UpdateReverted, self::UpdateFailed, self::CallSettingsUpdated => 'Configurações',
+            self::CspViolation => 'Segurança',
         };
     }
 
     /** @return list<string> */
     public static function groups(): array
     {
-        return ['Acesso', 'Usuários', 'Backup', 'Configurações'];
+        return ['Acesso', 'Usuários', 'Backup', 'Configurações', 'Segurança'];
     }
 }

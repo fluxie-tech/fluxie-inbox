@@ -48,7 +48,9 @@ class BackupCatalog
 
         // O ListObjectsV2 do S3 já traz o tamanho: uma requisição para a lista inteira, não uma por arquivo.
         foreach ($disk->getDriver()->listContents('', false) as $item) {
-            if ($item instanceof FileAttributes && ($file = $this->parse($item->path(), $item->fileSize())) !== null) {
+            $file = $item instanceof FileAttributes ? $this->parse($item->path(), $item->fileSize()) : null;
+
+            if ($file !== null) {
                 $files[] = $file;
             }
         }

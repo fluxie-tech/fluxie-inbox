@@ -179,10 +179,12 @@ class BusinessHours
 
             if ($previousHadWindows && $last !== null && $runs[$last]['signature'] === $signature) {
                 $runs[$last]['days'][] = $weekday;
-            } else {
-                $runs[] = ['signature' => $signature, 'days' => [$weekday]];
+                $previousHadWindows = true;
+
+                continue;
             }
 
+            $runs[] = ['signature' => $signature, 'days' => [$weekday]];
             $previousHadWindows = true;
         }
 

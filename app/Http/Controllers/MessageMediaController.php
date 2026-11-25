@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Message;
 use App\Services\Inbox\IncomingMedia;
-use App\Services\Waha\WahaClient;
 use App\Services\Waha\WahaMedia;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\Client\Response as UpstreamResponse;
@@ -37,12 +36,14 @@ class MessageMediaController extends Controller
         abort_if($message->media_purged_at !== null, 404);
 
         // A cópia no disco de mídia vale mais que a do WAHA (e, no anexo enviado, é a única enquanto o eco não volta).
-        if ($message->media_path !== null && ($response = $this->fromDisk($request, $message)) !== null) {
+        $response = $message->media_path === null ? null : $this->fromDisk($request, $message);
+
+        if ($response !== null) {
             return $response;
         }
 
         $ref = $this->safeRef($message);
-        $upstream = (new WahaMedia(new WahaClient($message->channel()->firstOrFail())))->streamFile($ref, $request->header('Range'));
+        $upstream = WahaMedia::forChannel($message->channel()->firstOrFail())->streamFile($ref, $request->header('Range'));
 
         abort_if($upstream === null, 404);
 

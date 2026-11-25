@@ -114,9 +114,11 @@ class ImportHistory
 
             if ($incoming !== null) {
                 $chats[$incoming->peer][] = [$data, $incoming];
-            } else {
-                $this->countIgnored($data);
+
+                continue;
             }
+
+            $this->countIgnored($data);
         }
 
         foreach ($chats as &$items) {

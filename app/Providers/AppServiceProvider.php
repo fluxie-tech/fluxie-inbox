@@ -42,6 +42,8 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('webhook', fn (Request $request) => WebhookSignature::valid($request)
             ? Limit::none()
             : Limit::perMinute(config()->integer('security.webhook_invalid_per_minute'))->by('webhook-invalid:'.$request->ip()));
+
+        RateLimiter::for('csp-report', fn (Request $request) => Limit::perMinute(config()->integer('security.csp_report_per_minute'))->by('csp-report:'.$request->ip()));
     }
 
     protected function configureGates(): void

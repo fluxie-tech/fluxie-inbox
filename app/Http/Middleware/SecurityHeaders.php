@@ -31,6 +31,7 @@ class SecurityHeaders
 
         if ($header !== null) {
             $response->headers->set($header, $this->policy($request));
+            $response->headers->set('Reporting-Endpoints', 'csp="/csp-report"');
         }
 
         return $response;
@@ -56,6 +57,8 @@ class SecurityHeaders
             "form-action 'self'",
             "frame-ancestors 'self'",
             $request->isSecure() ? 'upgrade-insecure-requests' : null,
+            'report-uri /csp-report',
+            'report-to csp',
         ]));
     }
 

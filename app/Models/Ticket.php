@@ -44,6 +44,8 @@ use Illuminate\Support\Facades\DB;
  * @property string|null $close_summary
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
+ *
+ * @SuppressWarnings("PHPMD.CouplingBetweenObjects") o acoplamento vem dos tipos do Eloquent (relações, builders, casts)
  */
 #[Fillable([
     'protocol',

@@ -60,9 +60,11 @@ class Index extends Component
 
         if (Contact::query()->whereKey($this->selectedId)->exists()) {
             $this->showCard = true;
-        } else {
-            $this->selectedId = null;
+
+            return;
         }
+
+        $this->selectedId = null;
     }
 
     public function select(int $id): void
