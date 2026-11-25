@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<phpmd-baseline>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Actions/Inbox/StartConversation.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Automation/Editor.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Contacts/ContactCard.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/History/Index.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Inbox/Inbox.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Inbox/NewConversation.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Inbox/Transcript.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Settings/Backups.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Settings/ChannelCard.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Settings/System.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Settings/Users.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Setup/FirstSteps.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Alerts/AlertDispatcher.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Backup/Restore/RestoreDatabase.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Bot/BotEngine.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Bot/Effects/LiveEffects.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Inbox/IngestMessage.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Inbox/Presence.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Inbox/SendTicketMessage.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Reset/ResetSystem.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Update/ApplyUpdate.php"/>
+  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Update/Preflight.php"/>
+</phpmd-baseline>

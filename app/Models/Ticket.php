@@ -18,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
+use PHPMD\Attribute\SuppressWarnings;
+use PHPMD\Rule\Design\CouplingBetweenObjects;
 
 /**
  * @property int $id
@@ -61,6 +63,8 @@ use Illuminate\Support\Facades\DB;
     'close_outcome',
     'close_summary',
 ])]
+// O acoplamento vem dos tipos do Eloquent (relações, builders, casts).
+#[SuppressWarnings(CouplingBetweenObjects::class)]
 class Ticket extends Model
 {
     /** @use HasFactory<TicketFactory> */

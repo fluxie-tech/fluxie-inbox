@@ -92,7 +92,7 @@
             "phpstan analyse"
         ],
         "complexity": [
-            "phpmd analyze app --format text --ruleset phpmd.xml"
+            "phpmd analyze app --format text --ruleset phpmd.xml --baseline-file=phpmd.baseline.xml"
         ],
         "test:fast": [
             "@php artisan test --parallel"

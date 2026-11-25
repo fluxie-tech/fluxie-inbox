@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use PHPMD\Attribute\SuppressWarnings;
+use PHPMD\Rule\Design\CouplingBetweenObjects;
 
 /**
  * Mensagem de uma conversa. Só a entrega e o id do WhatsApp mudam depois de criada.
@@ -75,6 +77,8 @@ use Illuminate\Support\Str;
     'quoted_wa_message_id',
     'quoted_snapshot',
 ])]
+// O acoplamento vem dos tipos do Eloquent (relações, builders, casts).
+#[SuppressWarnings(CouplingBetweenObjects::class)]
 class Message extends Model
 {
     /**

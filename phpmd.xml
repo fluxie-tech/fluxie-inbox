@@ -25,6 +25,9 @@
         </properties>
     </rule>
 
+    <!-- Acoplamento: limite padrão 13; as classes acima dele estão em phpmd.baseline.xml até serem reduzidas. -->
+    <rule ref="rulesets/design.xml/CouplingBetweenObjects"/>
+
     <!-- Código morto -->
     <rule ref="rulesets/unusedcode.xml"/>
 
