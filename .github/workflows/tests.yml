@@ -219,6 +219,13 @@ jobs:
       - name: Run static checks
         if: steps.tested.outputs.tested != 'true'
         run: composer ci:static
+
+      # Só migration nova do PR: apagar, renomear ou mudar tipo de coluna quebra a versão anterior durante o rollback.
+      - name: Check destructive migrations
+        if: github.event_name == 'pull_request' && steps.tested.outputs.tested != 'true'
+        run: |
+          files=$(git diff --name-only --diff-filter=A HEAD^1 HEAD -- database/migrations)
+          [ -z "$files" ] || node .github/scripts/migration-guard.mjs $files
   # Separado dos testes: um aviso de segurança novo não deve reprovar um PR que não tem relação com ele.
   audit:
     runs-on: ubuntu-26.04
