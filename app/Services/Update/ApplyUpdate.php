@@ -5,13 +5,6 @@ namespace App\Services\Update;
 use App\Enums\AuditAction;
 use App\Enums\UpdateStatus;
 use App\Models\SystemUpdate;
-use App\Models\User;
-use App\Notifications\NewVersionAvailable;
-use App\Services\Audit\Auditor;
-use App\Services\Backup\BackupKind;
-use App\Services\Backup\DumpFailed;
-use App\Services\Backup\RunBackup;
-use Illuminate\Notifications\DatabaseNotification;
 use RuntimeException;
 use Throwable;
 
@@ -27,7 +20,8 @@ final class ApplyUpdate
     public function __construct(
         private readonly Preflight $preflight,
         private readonly Coolify $coolify,
-        private readonly RunBackup $backup,
+        private readonly UpdateBackup $backup,
+        private readonly CloseUpdate $closer,
         private readonly InstalledVersion $installed,
     ) {}
 
@@ -43,7 +37,7 @@ final class ApplyUpdate
                 return; // o vigia fechou no meio
             }
 
-            $update->update(['backup_file' => $this->backup()]);
+            $update->update(['backup_file' => ($this->backup)()]);
         } catch (RuntimeException $e) {
             $this->fail($update, $e->getMessage());
 
@@ -56,20 +50,17 @@ final class ApplyUpdate
     /** Fecha como `falhou` (só vale para o que ainda não mexeu no Coolify, ou para a devolução que não deu). */
     public function fail(SystemUpdate $update, string $message): void
     {
-        $this->close($update, UpdateStatus::Falhou, $message, AuditAction::UpdateFailed);
+        ($this->closer)($update, UpdateStatus::Falhou, $message, AuditAction::UpdateFailed);
     }
 
     /** Fecha como `concluida` (quem chama já viu a versão nova rodando). */
     public function succeed(SystemUpdate $update): void
     {
-        if (! $this->close($update, UpdateStatus::Concluida, "Sistema atualizado para {$update->to_version}.", AuditAction::UpdateSucceeded)) {
+        if (! ($this->closer)($update, UpdateStatus::Concluida, "Sistema atualizado para {$update->to_version}.", AuditAction::UpdateSucceeded)) {
             return;
         }
 
-        // O aviso "Versão X disponível" deixa de valer: a X já está rodando.
-        DatabaseNotification::query()->where('type', NewVersionAvailable::class)->whereNull('read_at')
-            ->whereRaw("(data::jsonb ->> 'version') = ?", [(string) (Version::parse($update->to_version) ?? $update->to_version)])
-            ->update(['read_at' => now()]);
+        $this->closer->dismissNotice($update);
     }
 
     /** @throws RuntimeException com os erros do pré-voo, em português */
@@ -80,18 +71,6 @@ final class ApplyUpdate
         $errors = $this->preflight->check($target, $compose);
 
         return $errors === [] ? $compose : throw new RuntimeException(implode(' ', $errors));
-    }
-
-    /** @throws RuntimeException */
-    private function backup(): string
-    {
-        try {
-            $file = ($this->backup)(BackupKind::Manual);
-        } catch (DumpFailed $e) {
-            throw new RuntimeException('O backup antes da atualização falhou: '.$e->getMessage());
-        }
-
-        return $file === null ? throw new RuntimeException('Já há um backup em andamento. Tente de novo quando ele terminar.') : $file->name;
     }
 
     private function apply(SystemUpdate $update, string $compose): void
@@ -183,18 +162,7 @@ final class ApplyUpdate
             return;
         }
 
-        $this->close($update, UpdateStatus::Revertida, "A atualização foi desfeita: {$reason}", AuditAction::UpdateReverted);
-    }
-
-    private function close(SystemUpdate $update, UpdateStatus $status, string $message, AuditAction $action): bool
-    {
-        if (! $update->moveTo($status, $message)) {
-            return false; // já fechada por outro processo: sem segunda auditoria
-        }
-
-        Auditor::record($action, $update->requested_by === null ? null : User::query()->find($update->requested_by), $update->to_version, ['message' => $message]);
-
-        return true;
+        ($this->closer)($update, UpdateStatus::Revertida, "A atualização foi desfeita: {$reason}", AuditAction::UpdateReverted);
     }
 
     private function at(SystemUpdate $update, UpdateStatus $status): bool

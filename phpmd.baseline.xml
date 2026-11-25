@@ -11,5 +11,4 @@
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Settings/System.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Settings/Users.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Setup/FirstSteps.php"/>
-  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Update/ApplyUpdate.php"/>
 </phpmd-baseline>
