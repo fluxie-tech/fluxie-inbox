@@ -57,7 +57,7 @@ class Inbox extends Component
 
     public ?int $reassignUserId = null;
 
-    public string $closeOutcome = '';
+    public string $closeReasonId = '';
 
     public string $closeSummary = '';
 
@@ -145,7 +145,7 @@ class Inbox extends Component
 
     public function closePanel(): void
     {
-        $this->reset('panel', 'transferSectorId', 'transferNote', 'reassignUserId', 'closeOutcome', 'closeSummary');
+        $this->reset('panel', 'transferSectorId', 'transferNote', 'reassignUserId', 'closeReasonId', 'closeSummary');
         $this->resetErrorBag();
     }
 
@@ -190,9 +190,9 @@ class Inbox extends Component
         $this->authorize('close', $ticket);
 
         $this->closeSummary = trim($this->closeSummary);
-        $this->validate(TicketPanel::closeRules(), TicketPanel::CLOSE_MESSAGES);
+        $this->validate(TicketPanel::closeRules((int) $this->closeReasonId), TicketPanel::CLOSE_MESSAGES);
 
-        $closed = $this->ticketPanel()->close($ticket, $this->user(), $this->closeOutcome, $this->closeSummary);
+        $closed = $this->ticketPanel()->close($ticket, $this->user(), (int) $this->closeReasonId, $this->closeSummary);
 
         $this->notice = $closed ? null : self::ALREADY_CLOSED;
         $this->closePanel();
@@ -275,6 +275,7 @@ class Inbox extends Component
             'canReassign' => $ticket !== null && $user->can('reassign', $ticket),
             'canTakeover' => $ticket !== null && $user->can('takeover', $ticket),
             'sectors' => $this->panel === 'transfer' ? $panel->sectors() : collect(),
+            ...$panel->closeForm($this->panel, (int) $this->closeReasonId),
             'candidates' => $ticket !== null && $this->panel === 'reassign' ? $panel->candidates($ticket) : collect(),
         ]);
     }

@@ -17,6 +17,9 @@ class TicketProtocolConcurrencyTest extends TestCase
 {
     use DatabaseTruncation;
 
+    /** Os motivos de encerramento vêm da migração: truncar apagaria os dados de base que os outros testes do mesmo banco usam. */
+    protected $exceptTables = ['close_reasons'];
+
     private const TICKETS_PER_PROCESS = 5;
 
     protected function tearDown(): void

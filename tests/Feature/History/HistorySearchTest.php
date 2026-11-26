@@ -2,10 +2,10 @@
 
 namespace Tests\Feature\History;
 
-use App\Enums\CloseOutcome;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
 use App\Models\Channel;
+use App\Models\CloseReason;
 use App\Models\Contact;
 use App\Models\Message;
 use App\Models\Sector;
@@ -33,6 +33,11 @@ class HistorySearchTest extends TestCase
         $this->supervisor = User::factory()->create(['role' => UserRole::SUPERVISOR]);
     }
 
+    private function reasonId(string $name): int
+    {
+        return (int) CloseReason::query()->where('name', $name)->value('id');
+    }
+
     private function closed(array $override = [], ?string $contactName = null): Ticket
     {
         return Ticket::factory()->create(array_replace([
@@ -58,7 +63,7 @@ class HistorySearchTest extends TestCase
             $filters['to'] ?? null,
             $filters['sectorId'] ?? null,
             $filters['userId'] ?? null,
-            $filters['outcome'] ?? null,
+            $filters['closeReasonId'] ?? null,
             $filters['contactId'] ?? null,
         )->pluck('tickets.id')->all();
     }
@@ -120,13 +125,20 @@ class HistorySearchTest extends TestCase
     {
         $sector = Sector::factory()->create();
         $agent = User::factory()->create(['role' => UserRole::ATENDENTE]);
-        $match = $this->closed(['sector_id' => $sector->id, 'assigned_user_id' => $agent->id, 'close_outcome' => CloseOutcome::RESOLVIDO]);
-        $this->closed(['close_outcome' => CloseOutcome::SEM_RESPOSTA]);
+        $match = $this->closed(['sector_id' => $sector->id, 'assigned_user_id' => $agent->id, 'close_reason_id' => $this->reasonId('Resolvido')]);
+        $this->closed(['close_reason_id' => $this->reasonId('Sem resposta')]);
 
         $this->assertSame([$match->id], $this->ids(filters: ['sectorId' => $sector->id]));
         $this->assertSame([$match->id], $this->ids(filters: ['userId' => $agent->id]));
-        $this->assertSame([$match->id], $this->ids(filters: ['outcome' => 'resolvido']));
-        $this->assertCount(2, $this->ids(filters: ['outcome' => 'inventado']));
+        $this->assertSame([$match->id], $this->ids(filters: ['closeReasonId' => $this->reasonId('Resolvido')]));
+    }
+
+    public function test_filtra_pelo_id_do_motivo(): void
+    {
+        $match = $this->closed(['close_reason_id' => $this->reasonId('Sem resposta')]);
+        $this->closed(['close_reason_id' => $this->reasonId('Resolvido')]);
+
+        $this->assertSame([$match->id], $this->ids(filters: ['closeReasonId' => $this->reasonId('Sem resposta')]));
     }
 
     public function test_filtro_de_atendente_e_ignorado_para_atendente(): void

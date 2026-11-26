@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\ClosedReason;
-use App\Enums\CloseOutcome;
 use App\Enums\TicketStatus;
 use App\Services\Inbox\TicketProtocol;
 use Carbon\CarbonImmutable;
@@ -40,12 +39,13 @@ use Illuminate\Support\Facades\DB;
  * @property CarbonImmutable|null $agent_seen_at
  * @property int|null $agent_seen_message_id
  * @property ClosedReason|null $closed_reason
- * @property CloseOutcome|null $close_outcome
+ * @property int|null $close_reason_id
  * @property string|null $close_summary
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  *
  * @SuppressWarnings("PHPMD.CouplingBetweenObjects") o acoplamento vem dos tipos do Eloquent (relações, builders, casts)
+ * @SuppressWarnings("PHPMD.TooManyPublicMethods") um método por relação e escopo do ticket, de propósito
  */
 #[Fillable([
     'protocol',
@@ -60,7 +60,6 @@ use Illuminate\Support\Facades\DB;
     'last_outbound_at',
     'closed_at',
     'closed_reason',
-    'close_outcome',
     'close_summary',
 ])]
 class Ticket extends Model
@@ -94,7 +93,6 @@ class Ticket extends Model
             'sla_breached_at' => 'datetime',
             'agent_seen_at' => 'datetime',
             'closed_reason' => ClosedReason::class,
-            'close_outcome' => CloseOutcome::class,
         ];
     }
 
@@ -282,6 +280,14 @@ class Ticket extends Model
     public function channel(): BelongsTo
     {
         return $this->belongsTo(Channel::class);
+    }
+
+    /**
+     * @return BelongsTo<CloseReason, $this>
+     */
+    public function closeReason(): BelongsTo
+    {
+        return $this->belongsTo(CloseReason::class);
     }
 
     /**

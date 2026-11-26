@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Components;
 
-use App\Enums\CloseOutcome;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
 use App\Livewire\Contacts\ContactCard;
@@ -10,6 +9,7 @@ use App\Livewire\History\Index as History;
 use App\Livewire\Inbox\Inbox;
 use App\Livewire\Reports\Index as Reports;
 use App\Models\Channel;
+use App\Models\CloseReason;
 use App\Models\Contact;
 use App\Models\Ticket;
 use App\Models\User;
@@ -68,25 +68,25 @@ class StatusBadgeScreensTest extends TestCase
 
     public function test_historico_mostra_o_desfecho_em_selo_na_lista_e_no_cabecalho(): void
     {
-        $ticket = $this->ticket(TicketStatus::ENCERRADO, ['close_outcome' => CloseOutcome::RESOLVIDO]);
+        $ticket = $this->ticket(TicketStatus::ENCERRADO, ['close_reason_id' => CloseReason::query()->where('name', 'Resolvido')->value('id')]);
 
         $html = Livewire::actingAs($this->admin())->test(History::class)->call('select', $ticket->id)->html();
         $xpath = $this->xpath($html);
 
-        $this->assertGreaterThanOrEqual(2, $xpath->query('//*[@data-status-tone="ok"][contains(., "Resolvido")]')->length, 'lista e barra de encerramento');
+        $this->assertGreaterThanOrEqual(2, $xpath->query('//*[@data-status-tone="neutral"][contains(., "Resolvido")]')->length, 'lista e barra de encerramento');
     }
 
     public function test_cartao_do_contato_mostra_o_status_dos_anteriores_em_selo(): void
     {
         $current = $this->ticket(TicketStatus::EM_ATENDIMENTO);
         // O banco só permite um ticket aberto por contato e canal: o anterior é um encerrado com desfecho.
-        $this->ticket(TicketStatus::ENCERRADO, ['contact_id' => $current->contact_id, 'close_outcome' => CloseOutcome::RESOLVIDO]);
+        $this->ticket(TicketStatus::ENCERRADO, ['contact_id' => $current->contact_id, 'close_reason_id' => CloseReason::query()->where('name', 'Resolvido')->value('id')]);
 
         $html = Livewire::actingAs($this->admin())->test(ContactCard::class, ['contactId' => $current->contact_id, 'compact' => true, 'currentTicketId' => $current->id])->html();
         $xpath = $this->xpath($html);
 
         $this->assertSame(1, $xpath->query('//*[@data-status-tone="neutral"][contains(., "Encerrado")]')->length);
-        $this->assertSame(1, $xpath->query('//*[@data-status-tone="ok"][contains(., "Resolvido")]')->length);
+        $this->assertSame(1, $xpath->query('//*[@data-status-tone="neutral"][contains(., "Resolvido")]')->length);
     }
 
     public function test_relatorio_mostra_a_situacao_do_sla_em_selo(): void

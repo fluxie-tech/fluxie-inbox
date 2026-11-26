@@ -8,6 +8,7 @@ use App\Enums\UserRole;
 use App\Jobs\SendTicketMessageJob;
 use App\Livewire\Inbox\Inbox;
 use App\Models\Channel;
+use App\Models\CloseReason;
 use App\Models\Contact;
 use App\Models\Message;
 use App\Models\Ticket;
@@ -193,8 +194,7 @@ class InboxTest extends TestCase
         Livewire::actingAs($me)->test(Inbox::class)
             ->call('select', $ticket->id)
             ->call('openPanel', 'close')
-            ->set('closeOutcome', 'resolvido')
-            ->set('closeSummary', 'Cotacao enviada')
+            ->set('closeReasonId', (string) CloseReason::query()->where('name', 'Resolvido')->value('id'))
             ->call('close')
             ->assertSee('Somente leitura')
             ->assertDontSee('Escreva uma resposta');

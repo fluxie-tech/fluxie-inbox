@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\History;
 
-use App\Enums\CloseOutcome;
 use App\Enums\DeliveryStatus;
 use App\Enums\MessageDirection;
 use App\Enums\MessageOrigin;
@@ -10,6 +9,7 @@ use App\Enums\TicketStatus;
 use App\Enums\UserRole;
 use App\Livewire\History\Index;
 use App\Models\Channel;
+use App\Models\CloseReason;
 use App\Models\Contact;
 use App\Models\Message;
 use App\Models\Sector;
@@ -42,6 +42,11 @@ class HistoryPageTest extends TestCase
         $this->mine = Sector::factory()->create();
         $this->agent = User::factory()->create(['role' => UserRole::ATENDENTE]);
         $this->agent->sectors()->attach($this->mine);
+    }
+
+    private function reasonId(string $name): int
+    {
+        return (int) CloseReason::query()->where('name', $name)->value('id');
     }
 
     private function closed(string $name, array $override = []): Ticket
@@ -140,14 +145,31 @@ class HistoryPageTest extends TestCase
     {
         $other = Sector::factory()->create();
         $this->agent->sectors()->attach($other);
-        $this->closed('Resolvido Antigo', ['closed_at' => now()->subDays(40), 'close_outcome' => CloseOutcome::RESOLVIDO]);
-        $this->closed('Resolvido Recente', ['close_outcome' => CloseOutcome::RESOLVIDO]);
-        $this->closed('Sem Resposta', ['sector_id' => $other->id, 'close_outcome' => CloseOutcome::SEM_RESPOSTA]);
+        $this->closed('Resolvido Antigo', ['closed_at' => now()->subDays(40), 'close_reason_id' => $this->reasonId('Resolvido')]);
+        $this->closed('Resolvido Recente', ['close_reason_id' => $this->reasonId('Resolvido')]);
+        $this->closed('Sem Resposta', ['sector_id' => $other->id, 'close_reason_id' => $this->reasonId('Sem resposta')]);
 
         $this->page()->assertSee('Resolvido Recente')->assertSee('Sem Resposta')->assertDontSee('Resolvido Antigo');
         $this->page()->set('from', '')->assertSee('Resolvido Antigo');
-        $this->page()->set('outcome', 'sem_resposta')->assertSee('Sem Resposta')->assertDontSee('Resolvido Recente');
+        $this->page()->set('outcome', (string) $this->reasonId('Sem resposta'))->assertSee('Sem Resposta')->assertDontSee('Resolvido Recente');
         $this->page()->set('sectorId', $this->mine->id)->assertDontSee('Sem Resposta')->assertSee('Resolvido Recente');
+    }
+
+    public function test_url_antiga_com_slug_no_motivo_abre_sem_filtro(): void
+    {
+        $this->closed('Sem Resposta', ['close_reason_id' => $this->reasonId('Sem resposta')]);
+
+        $this->actingAs($this->agent)->get(route('historico', ['outcome' => 'resolvido']))->assertOk()->assertSee('Sem Resposta');
+    }
+
+    public function test_filtrar_pelo_motivo_desativado_ainda_funciona(): void
+    {
+        $motivo = CloseReason::factory()->create(['name' => 'Antigo', 'active' => false]);
+        $this->closed('Com Antigo', ['close_reason_id' => $motivo->id]);
+        $this->closed('Resolvido Recente', ['close_reason_id' => $this->reasonId('Resolvido')]);
+
+        $this->page()->assertSee('Antigo (desativado)')
+            ->set('outcome', (string) $motivo->id)->assertSee('Com Antigo')->assertDontSee('Resolvido Recente');
     }
 
     public function test_filtro_de_atendente_so_aparece_para_supervisor_e_admin(): void
@@ -159,14 +181,14 @@ class HistoryPageTest extends TestCase
     public function test_selecionar_mostra_transcricao_eventos_e_resumo_sem_reenviar_nem_compositor(): void
     {
         $closer = User::factory()->create(['role' => UserRole::ATENDENTE, 'name' => 'Marina Alves']);
-        $ticket = $this->closed('Joaquim', ['assigned_user_id' => $closer->id, 'close_outcome' => CloseOutcome::RESOLVIDO, 'close_summary' => 'Cotacao aprovada pelo socio']);
+        $ticket = $this->closed('Joaquim', ['assigned_user_id' => $closer->id, 'close_reason_id' => $this->reasonId('Resolvido'), 'close_summary' => 'Cotacao aprovada pelo socio']);
         Message::factory()->for($ticket)->create(['body' => 'Pode fechar o pedido']);
         Message::factory()->for($ticket)->create([
             'direction' => MessageDirection::OUT, 'origin' => MessageOrigin::PAINEL, 'author_user_id' => $closer->id,
             'wa_message_id' => null, 'body' => 'Falhou aqui', 'delivery_status' => DeliveryStatus::FAILED, 'failure_code' => SendFailure::EXPIRED,
         ]);
         TicketEvent::create(['ticket_id' => $ticket->id, 'type' => 'claimed', 'actor_user_id' => $closer->id]);
-        TicketEvent::create(['ticket_id' => $ticket->id, 'type' => 'closed', 'actor_user_id' => $closer->id, 'payload' => ['outcome' => 'resolvido', 'summary' => 'Cotacao aprovada pelo socio']]);
+        TicketEvent::create(['ticket_id' => $ticket->id, 'type' => 'closed', 'actor_user_id' => $closer->id, 'payload' => ['close_reason_id' => $this->reasonId('Resolvido'), 'summary' => 'Cotacao aprovada pelo socio']]);
 
         $this->page($closer)->call('select', $ticket->id)
             ->assertSee('Pode fechar o pedido')

@@ -23,7 +23,7 @@ final class HistoryTicketView
     {
         $ticket = $ticketId === null
             ? null
-            : Ticket::query()->inHistoryOf($user)->with(['contact.tags', 'channel', 'assignee', 'sector'])->find($ticketId);
+            : Ticket::query()->inHistoryOf($user)->with(['contact.tags', 'channel', 'assignee', 'sector', 'closeReason'])->find($ticketId);
 
         $messages = new Collection;
         $hasMore = false;

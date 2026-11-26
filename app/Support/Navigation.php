@@ -35,6 +35,7 @@ class Navigation
             $item('Auditoria', 'auditoria', 'supervisor', $follow, '', 'shield-check', 'auditoria*'),
             $item('Setores', 'configuracoes.setores', 'admin', $config, 'Atendimento', 'squares-2x2'),
             $item('Horário e SLA', 'configuracoes.horario', 'admin', $config, 'Atendimento', 'clock'),
+            $item('Encerramento', 'configuracoes.encerramento', 'admin', $config, 'Atendimento', 'check-circle'),
             $item('Respostas rápidas', 'configuracoes.respostas', 'supervisor', $config, 'Atendimento', 'bolt'),
             $item('Etiquetas', 'configuracoes.etiquetas', 'supervisor', $config, 'Atendimento', 'tag'),
             $item('Usuários', 'configuracoes.usuarios', 'supervisor', $config, 'Equipe', 'users'),

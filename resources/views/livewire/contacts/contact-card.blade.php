@@ -55,7 +55,7 @@
                             @if (! $closed && $otherNumber)
                                 <span class="block font-semibold text-warn">também tem ticket aberto no número {{ $number }} ({{ $past->status->label() }})</span>
                             @else
-                                <span class="mt-1 flex flex-wrap items-center gap-1"><x-status-badge :status="$past->status" />@if ($past->close_outcome)<x-status-badge :status="$past->close_outcome" />@endif @if ($otherNumber)<span>· número {{ $number }}</span>@endif</span>
+                                <span class="mt-1 flex flex-wrap items-center gap-1"><x-status-badge :status="$past->status" />@if ($past->closeReason)<x-status-badge tone="neutral">{{ $past->closeReason->name }}</x-status-badge>@endif @if ($otherNumber)<span>· número {{ $number }}</span>@endif</span>
                             @endif
                         </x-link-card>
                     </li>
@@ -160,7 +160,7 @@
                     <li wire:key="history-{{ $past->id }}">
                         <x-link-card :href="$href" :title="$past->protocol">
                             <span class="block">{{ $past->opened_at->timezone($tz)->format('d/m/Y') }} · {{ $past->sector?->name ?? 'Fila geral' }}</span>
-                            <span class="mt-1 flex flex-wrap items-center gap-1"><x-status-badge :status="$past->status" />@if ($past->close_outcome)<x-status-badge :status="$past->close_outcome" />@endif</span>
+                            <span class="mt-1 flex flex-wrap items-center gap-1"><x-status-badge :status="$past->status" />@if ($past->closeReason)<x-status-badge tone="neutral">{{ $past->closeReason->name }}</x-status-badge>@endif</span>
                             @if ($past->close_summary)
                                 <span class="mt-1 block">{{ $past->close_summary }}</span>
                             @endif

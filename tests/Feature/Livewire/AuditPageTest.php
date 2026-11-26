@@ -6,6 +6,7 @@ use App\Enums\TicketStatus;
 use App\Enums\UserRole;
 use App\Livewire\Audit\Index;
 use App\Models\Channel;
+use App\Models\CloseReason;
 use App\Models\Sector;
 use App\Models\Ticket;
 use App\Models\TicketEvent;
@@ -77,7 +78,7 @@ class AuditPageTest extends TestCase
     public function test_lista_com_protocolo_usuario_acao_e_detalhe_do_mais_novo_ao_mais_velho(): void
     {
         $ana = User::factory()->create(['name' => 'Ana Atendente']);
-        $this->event('closed', $ana, ['reason' => 'manual', 'outcome' => 'resolvido', 'summary' => 'Cotacao enviada'], now()->subHour());
+        $this->event('closed', $ana, ['reason' => 'manual', 'close_reason_id' => CloseReason::query()->where('name', 'Resolvido')->value('id'), 'summary' => 'Cotacao enviada'], now()->subHour());
         $this->event('claimed', $ana, null, now());
 
         $this->page()->assertSeeInOrder(['Assumido', 'Encerrado'])

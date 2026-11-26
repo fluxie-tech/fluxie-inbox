@@ -65,7 +65,7 @@ class NavigationTest extends TestCase
         $this->assertSame([], $groups(UserRole::ATENDENTE));
         $this->assertSame(['Atendimento' => ['Respostas rápidas', 'Etiquetas'], 'Equipe' => ['Usuários']], $groups(UserRole::SUPERVISOR));
         $this->assertSame([
-            'Atendimento' => ['Setores', 'Horário e SLA', 'Respostas rápidas', 'Etiquetas'],
+            'Atendimento' => ['Setores', 'Horário e SLA', 'Encerramento', 'Respostas rápidas', 'Etiquetas'],
             'Equipe' => ['Usuários'],
             'Conexões' => ['Canais', 'Google Contatos'],
             'Empresa' => ['Empresa e assinatura', 'Anexos e retenção', 'Backup do banco', 'Sistema'],

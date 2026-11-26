@@ -83,7 +83,7 @@
                             <span class="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-2">
                                 <x-status-badge :status="$item->status" data-testid="card-status" />
                                 <span data-testid="card-protocol" class="shrink-0 font-mono text-xs text-ink-3">{{ $item->protocol }}</span>
-                                <span class="truncate">{{ $item->close_outcome?->label() ?? $item->closed_reason?->label() }}</span>
+                                <span class="truncate">{{ $item->closeReason?->name ?? $item->closed_reason?->label() }}</span>
                             </span>
                         </span>
                     </button>
@@ -245,8 +245,8 @@
                     </div>
                     @if ($ticket->status === \App\Enums\TicketStatus::ENCERRADO)
                         <p class="max-h-16 overflow-y-auto text-xs break-words text-ink-2">
-                            @if ($ticket->close_outcome)
-                                <x-status-badge :status="$ticket->close_outcome" class="me-1" />
+                            @if ($ticket->closeReason)
+                                <x-status-badge tone="neutral" class="me-1">{{ $ticket->closeReason->name }}</x-status-badge>
                             @elseif ($ticket->closed_reason)
                                 <x-status-badge tone="neutral" class="me-1">{{ $ticket->closed_reason->label() }}</x-status-badge>
                             @endif
@@ -319,16 +319,19 @@
                 <form wire:submit="close" class="space-y-3 border-b border-line bg-surface px-4 py-3">
                     <p class="text-xs text-ink-3">Encerrar {{ $ticket->protocol }}. A próxima mensagem do cliente abre um ticket novo.</p>
                     <div class="w-56">
-                        <flux:select wire:model="closeOutcome" label="Motivo do encerramento">
+                        <flux:select wire:model.live="closeReasonId" label="Motivo do encerramento">
                             <flux:select.option value="">Escolha o motivo</flux:select.option>
-                            @foreach (\App\Enums\CloseOutcome::cases() as $outcome)
-                                <flux:select.option :value="$outcome->value">{{ $outcome->label() }}</flux:select.option>
+                            @foreach ($closeReasons as $closeReason)
+                                <flux:select.option :value="$closeReason->id">{{ $closeReason->name }}</flux:select.option>
                             @endforeach
                         </flux:select>
+                        @error('closeReasonId')
+                            <p class="mt-1 text-xs text-danger">{{ $message }}</p>
+                        @enderror
                     </div>
                     <div>
                         <flux:textarea wire:model="closeSummary" rows="3" label="Resumo do atendimento" placeholder="O que foi pedido e o que ficou combinado" maxlength="500" />
-                        <p class="mt-1 text-xs text-ink-3">Obrigatório. Aparece no histórico do contato e na auditoria.</p>
+                        <p class="mt-1 text-xs text-ink-3">{{ $summaryRequired ? 'Obrigatório para este motivo.' : 'Opcional.' }} Aparece no histórico do contato e na auditoria.</p>
                         @error('closeSummary')
                             <p class="mt-1 text-xs text-danger">{{ $message }}</p>
                         @enderror

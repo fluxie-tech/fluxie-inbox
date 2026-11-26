@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Livewire;
 
-use App\Enums\CloseOutcome;
 use App\Enums\GoogleConnectionStatus;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
@@ -10,6 +9,7 @@ use App\Jobs\SyncContactToGoogleJob;
 use App\Livewire\Contacts\ContactCard;
 use App\Livewire\Inbox\Inbox;
 use App\Models\Channel;
+use App\Models\CloseReason;
 use App\Models\Contact;
 use App\Models\GoogleConnection;
 use App\Models\Sector;
@@ -192,7 +192,7 @@ class ContactCardTest extends TestCase
                 'status' => TicketStatus::ENCERRADO,
                 'opened_at' => now()->subDays(20 - $n),
                 'protocol' => sprintf('2026-%06d', $n),
-                'close_outcome' => CloseOutcome::RESOLVIDO,
+                'close_reason_id' => CloseReason::query()->where('name', 'Resolvido')->value('id'),
                 'close_summary' => 'Resumo do ticket '.$n,
             ]);
         }
@@ -202,6 +202,16 @@ class ContactCardTest extends TestCase
             ->assertSee('2026-000011')->assertSee('Resumo do ticket 11')->assertSee('Resolvido')
             ->assertSee('2026-000007')
             ->assertDontSee('2026-000006');
+    }
+
+    public function test_chamado_anterior_mostra_o_selo_cinza_com_o_nome_do_motivo(): void
+    {
+        Ticket::factory()->for($this->contact)->for(Channel::factory()->connected()->create())->create([
+            'status' => TicketStatus::ENCERRADO,
+            'close_reason_id' => CloseReason::query()->where('name', 'Cliente pediu')->value('id'),
+        ]);
+
+        $this->card()->assertSee('data-status-tone="neutral"', false)->assertSee('Cliente pediu');
     }
 
     public function test_ticket_aberto_aparece_sem_resumo_e_contato_sem_ticket_avisa(): void

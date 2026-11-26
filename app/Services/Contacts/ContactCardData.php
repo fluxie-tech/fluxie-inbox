@@ -22,7 +22,7 @@ class ContactCardData
     public function for(Contact $contact, ?int $currentTicketId, User $user): array
     {
         $others = Ticket::query()->where('contact_id', $contact->id)->when($currentTicketId !== null, fn ($query) => $query->whereKeyNot($currentTicketId));
-        $history = (clone $others)->with(['sector', 'channel'])->latest('opened_at')->limit(self::HISTORY_LIMIT)->get();
+        $history = (clone $others)->with(['sector', 'channel', 'closeReason'])->latest('opened_at')->limit(self::HISTORY_LIMIT)->get();
         $historyTotal = $others->count();
 
         $contactTags = Tag::sortedByName($contact->tags()->get());

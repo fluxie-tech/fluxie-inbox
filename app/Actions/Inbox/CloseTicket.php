@@ -3,10 +3,10 @@
 namespace App\Actions\Inbox;
 
 use App\Enums\ClosedReason;
-use App\Enums\CloseOutcome;
 use App\Enums\TicketStatus;
 use App\Events\TicketUpdated;
 use App\Models\BotSession;
+use App\Models\CloseReason;
 use App\Models\Ticket;
 use App\Models\TicketEvent;
 use App\Models\User;
@@ -17,9 +17,9 @@ class CloseTicket
     /**
      * Idempotente: só o fechamento que de fato mudou o status grava evento. Devolve falso quando o ticket já estava encerrado.
      */
-    public function __invoke(Ticket $ticket, ?User $user, ClosedReason $reason = ClosedReason::MANUAL, ?CloseOutcome $outcome = null, ?string $summary = null): bool
+    public function __invoke(Ticket $ticket, ?User $user, ClosedReason $reason = ClosedReason::MANUAL, ?CloseReason $closeReason = null, ?string $summary = null): bool
     {
-        $closed = DB::transaction(function () use ($ticket, $user, $reason, $outcome, $summary): bool {
+        $closed = DB::transaction(function () use ($ticket, $user, $reason, $closeReason, $summary): bool {
             $closed = Ticket::query()
                 ->whereKey($ticket->id)
                 ->where('status', '<>', TicketStatus::ENCERRADO->value)
@@ -27,7 +27,7 @@ class CloseTicket
                     'status' => TicketStatus::ENCERRADO->value,
                     'closed_at' => now(),
                     'closed_reason' => $reason->value,
-                    'close_outcome' => $outcome?->value,
+                    'close_reason_id' => $closeReason?->id,
                     'close_summary' => $summary,
                     'updated_at' => now(),
                 ]) === 1;
@@ -39,7 +39,7 @@ class CloseTicket
                     'ticket_id' => $ticket->id,
                     'type' => 'closed',
                     'actor_user_id' => $user?->id,
-                    'payload' => array_filter(['reason' => $reason->value, 'outcome' => $outcome?->value, 'summary' => $summary]),
+                    'payload' => array_filter(['reason' => $reason->value, 'close_reason_id' => $closeReason?->id, 'summary' => $summary]),
                 ]);
                 TicketUpdated::dispatch($ticket->refresh());
             }

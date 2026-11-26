@@ -20,7 +20,7 @@
                 'Responsável' => $ticket->assignee?->name ?? 'Não atribuído',
                 'Aberto em' => $ticket->opened_at->timezone($tz)->format('d/m/Y H:i'),
                 'Encerrado em' => $ticket->closed_at?->timezone($tz)->format('d/m/Y H:i'),
-                'Motivo' => $ticket->close_outcome?->label() ?? $ticket->closed_reason?->label(),
+                'Motivo' => $ticket->closeReason?->name ?? $ticket->closed_reason?->label(),
             ], fn ($value) => $value !== null) as $label => $value)
                 <div class="space-y-0.5">
                     <dt class="text-xs text-ink-3">{{ $label }}</dt>

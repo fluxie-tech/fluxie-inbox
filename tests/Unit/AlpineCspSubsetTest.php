@@ -138,6 +138,7 @@ class AlpineCspSubsetTest extends TestCase
         '$model',
         '$action',
         '$sector->name',
+        '$reason->name',
         '$message->body',
         '$qrValue',
         '\App\Settings\CompanySettings::logoUrl()',

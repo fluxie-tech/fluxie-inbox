@@ -3,7 +3,7 @@
 namespace App\Support;
 
 use App\Enums\ClosedReason;
-use App\Enums\CloseOutcome;
+use App\Models\CloseReason;
 use App\Models\Sector;
 use App\Models\TicketEvent;
 use App\Models\User;
@@ -51,6 +51,9 @@ final class TicketTimeline
     /** @var Collection<int, string> */
     private Collection $users;
 
+    /** @var Collection<int, string> */
+    private Collection $closeReasons;
+
     /** @param  Collection<int, TicketEvent>  $events */
     public function __construct(Collection $events)
     {
@@ -72,6 +75,7 @@ final class TicketTimeline
         }
 
         $this->sectors = Sector::query()->whereIn('id', $sectorIds)->get()->mapWithKeys(fn (Sector $sector): array => [$sector->id => $sector->name]);
+        $this->closeReasons = CloseReason::query()->get()->mapWithKeys(fn (CloseReason $reason): array => [$reason->id => $reason->name]);
         $this->users = User::query()->whereIn('id', $userIds)->get()->mapWithKeys(fn (User $user): array => [$user->id => $user->name]);
     }
 
@@ -152,7 +156,8 @@ final class TicketTimeline
      */
     private function closedDetail(array $payload): string
     {
-        $outcome = is_string($payload['outcome'] ?? null) ? CloseOutcome::tryFrom($payload['outcome'])?->label() : null;
+        $id = $payload['close_reason_id'] ?? null;
+        $outcome = is_int($id) ? $this->closeReasons->get($id, 'motivo removido') : null;
         $summary = is_string($payload['summary'] ?? null) ? $payload['summary'] : null;
         $automatic = $outcome === null && ($payload['reason'] ?? null) === ClosedReason::INATIVIDADE->value ? 'por inatividade' : null;
 
