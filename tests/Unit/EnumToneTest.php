@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Enums\ChannelStatus;
 use App\Enums\GoogleConnectionStatus;
+use App\Enums\HolidayKind;
 use App\Enums\SectorStatus;
 use App\Enums\TicketStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -34,6 +35,9 @@ class EnumToneTest extends TestCase
             'setor desativado' => [SectorStatus::DESATIVADO, 'neutral'],
             'google conectado' => [GoogleConnectionStatus::CONNECTED, 'ok'],
             'google precisa reautenticar' => [GoogleConnectionStatus::NEEDS_REAUTH, 'warn'],
+            'feriado nacional' => [HolidayKind::NACIONAL, 'neutral'],
+            'feriado facultativo' => [HolidayKind::FACULTATIVO, 'warn'],
+            'feriado cadastrado à mão' => [HolidayKind::MANUAL, 'neutral'],
         ];
     }
 
@@ -46,7 +50,7 @@ class EnumToneTest extends TestCase
     /** Estado novo sem tom quebra aqui (o `match` do enum não tem `default`). */
     public function test_todo_caso_dos_enums_tem_tom_valido(): void
     {
-        foreach ([TicketStatus::class, ChannelStatus::class, SectorStatus::class, GoogleConnectionStatus::class] as $enum) {
+        foreach ([TicketStatus::class, ChannelStatus::class, SectorStatus::class, GoogleConnectionStatus::class, HolidayKind::class] as $enum) {
             foreach ($enum::cases() as $case) {
                 $this->assertContains($case->tone(), self::TONES, $enum.'::'.$case->name);
             }

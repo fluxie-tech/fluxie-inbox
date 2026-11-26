@@ -7,11 +7,15 @@ use App\Models\Holiday;
 use App\Services\Inbox\BusinessHours;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class BusinessHoursTest extends TestCase
 {
     use RefreshDatabase;
+
+    private const KIND_MIGRATION = 'database/migrations/2026_11_26_000002_add_kind_and_closes_to_holidays.php';
 
     /** Sexta 30/10/2026, sábado 31/10, domingo 01/11 e segunda 02/11, no horário de São Paulo. */
     private function sp(string $dateTime): CarbonImmutable
@@ -120,5 +124,48 @@ class BusinessHoursTest extends TestCase
         BusinessHour::create(['weekday' => 5, 'opens_at' => '09:00', 'closes_at' => '12:00']);
 
         $this->assertSame('terça e quarta, das 9h às 17h30; sexta, das 9h às 12h', $this->hours()->summary());
+    }
+
+    public function test_feriado_que_a_empresa_nao_fecha_nao_fecha_o_atendimento(): void
+    {
+        $this->schedule();
+        Holiday::create(['date' => '2027-01-20', 'name' => 'Facultativo', 'closes' => false]);
+
+        $this->assertTrue($this->hours()->isOpen($this->sp('2027-01-20 10:00')));
+    }
+
+    public function test_feriado_que_a_empresa_fecha_fecha_o_atendimento(): void
+    {
+        $this->schedule();
+        Holiday::create(['date' => '2027-01-20', 'name' => 'Feriado', 'closes' => true]);
+
+        $this->assertFalse($this->hours()->isOpen($this->sp('2027-01-20 10:00')));
+    }
+
+    public function test_desligar_o_feriado_reabre_o_dia_no_proximo_horario_e_no_prazo_de_expediente(): void
+    {
+        $this->schedule();
+        Holiday::create(['date' => '2027-01-20', 'name' => 'Facultativo', 'closes' => false]);
+
+        $this->assertSame(
+            $this->sp('2027-01-20 08:00')->timestamp,
+            $this->hours()->nextOpening($this->sp('2027-01-19 19:00'))?->timestamp,
+        );
+        $this->assertSame(
+            $this->sp('2027-01-20 09:00')->timestamp,
+            $this->hours()->addBusinessSeconds($this->sp('2027-01-19 17:00'), 7200)->timestamp,
+        );
+    }
+
+    public function test_feriado_existente_vira_manual_e_fecha(): void
+    {
+        Artisan::call('migrate:rollback', ['--path' => self::KIND_MIGRATION]);
+        DB::table('holidays')->insert(['date' => '2027-01-20', 'name' => 'Antigo', 'created_at' => now(), 'updated_at' => now()]);
+
+        Artisan::call('migrate', ['--path' => self::KIND_MIGRATION]);
+
+        $holiday = DB::table('holidays')->where('date', '2027-01-20')->first();
+        $this->assertSame('manual', $holiday?->kind);
+        $this->assertTrue((bool) $holiday?->closes);
     }
 }

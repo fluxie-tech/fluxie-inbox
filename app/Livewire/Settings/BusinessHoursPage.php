@@ -3,7 +3,6 @@
 namespace App\Livewire\Settings;
 
 use App\Models\BusinessHour;
-use App\Models\Holiday;
 use App\Models\Setting;
 use App\Services\Inbox\AfterHoursReply;
 use App\Settings\CompanySettings;
@@ -23,10 +22,6 @@ class BusinessHoursPage extends Component
 
     /** @var array<int, array<int, array{opens: string, closes: string}>> */
     public array $days = [];
-
-    public string $holidayDate = '';
-
-    public string $holidayName = '';
 
     public bool $afterHoursEnabled = true;
 
@@ -106,29 +101,6 @@ class BusinessHoursPage extends Component
         session()->flash('saved', 'Horário salvo.');
     }
 
-    public function addHoliday(): void
-    {
-        $this->validate([
-            'holidayDate' => ['required', 'date_format:Y-m-d', 'unique:holidays,date'],
-            'holidayName' => ['required', 'string', 'max:120'],
-        ], [
-            'holidayDate.required' => 'Informe a data do feriado.',
-            'holidayDate.date_format' => 'Data inválida.',
-            'holidayDate.unique' => 'Essa data já está cadastrada.',
-            'holidayName.required' => 'Informe o nome do feriado.',
-            'holidayName.max' => 'O nome passa de 120 caracteres.',
-        ]);
-
-        Holiday::create(['date' => $this->holidayDate, 'name' => trim($this->holidayName)]);
-
-        $this->reset('holidayDate', 'holidayName');
-    }
-
-    public function removeHoliday(int $id): void
-    {
-        Holiday::query()->whereKey($id)->delete();
-    }
-
     public function saveSla(): void
     {
         $this->authorize('admin');
@@ -191,7 +163,6 @@ class BusinessHoursPage extends Component
     public function render(): View
     {
         return view('livewire.settings.business-hours-page', [
-            'holidays' => Holiday::query()->orderBy('date')->get(),
             'preview' => app(AfterHoursReply::class)->render($this->afterHoursMessage, now()),
         ]);
     }
