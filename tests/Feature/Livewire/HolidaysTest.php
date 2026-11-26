@@ -12,6 +12,8 @@ use App\Services\Holidays\HolidayImportParser;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Livewire\Features\SupportFileUploads\FileUploadConfiguration;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -154,6 +156,75 @@ class HolidaysTest extends TestCase
             ->assertSee('Envie um arquivo .json de até 100 KB.');
 
         $component->set('importFile', UploadedFile::fake()->createWithContent('f.txt', '[]'))->assertHasErrors('importFile');
+    }
+
+    public function test_arquivo_enviado_que_sumiu_do_disco_temporario_mostra_aviso_e_nao_grava(): void
+    {
+        $component = Livewire::actingAs($this->admin())->test(Holidays::class)
+            ->set('importFile', $this->arquivo());
+
+        // A limpeza do `livewire-tmp` apaga o diretório inteiro depois de 24 h.
+        Storage::disk(FileUploadConfiguration::disk())->deleteDirectory(FileUploadConfiguration::directory());
+
+        $component->call('import')
+            ->assertHasNoErrors()
+            ->assertSee('O arquivo enviado expirou. Envie de novo.');
+
+        $this->assertSame(0, Holiday::query()->count());
+    }
+
+    public function test_um_feriado_usa_o_singular_no_botao_e_no_aviso(): void
+    {
+        $um = UploadedFile::fake()->createWithContent('f.json', json_encode([['data' => '2026-12-25', 'nome' => 'Natal', 'tipo' => 'nacional']]));
+
+        Livewire::actingAs($this->admin())->test(Holidays::class)
+            ->set('importFile', $um)
+            ->assertSee('Importar 1 feriado')
+            ->assertDontSee('Importar 1 feriados')
+            ->call('import')
+            ->assertSee('1 feriado importado.')
+            ->assertDontSee('1 feriados importados.');
+    }
+
+    public function test_o_prompt_limita_cidade_e_uf_no_servidor(): void
+    {
+        $component = Livewire::actingAs($this->admin())->test(Holidays::class)
+            ->set('promptCity', '  '.str_repeat('A', 100).'  ')
+            ->set('promptUf', 's1p9x')
+            ->set('promptFrom', '2026-11-26')
+            ->set('promptTo', '2027-12-31');
+
+        $this->assertSame('SP', $component->get('promptUf'));
+        $component->assertSee(str_repeat('A', 80).'/SP')->assertDontSee(str_repeat('A', 81));
+    }
+
+    public function test_o_prompt_exige_datas_reais_e_periodo_em_ordem(): void
+    {
+        $component = Livewire::actingAs($this->admin())->test(Holidays::class)
+            ->set('promptCity', 'Ribeirão Preto')
+            ->set('promptUf', 'SP')
+            ->set('promptFrom', '2026-02-31')
+            ->set('promptTo', '2027-12-31')
+            ->assertDontSee('Ribeirão Preto/SP');
+
+        $component->set('promptFrom', '2027-12-31')->set('promptTo', '2026-11-26')->assertDontSee('Ribeirão Preto/SP');
+        $component->set('promptFrom', '2026-11-26')->set('promptTo', '2026-11-26')->assertSee('Ribeirão Preto/SP');
+    }
+
+    public function test_a_chave_empresa_fecha_tem_nome_acessivel_com_feriado_e_data(): void
+    {
+        Holiday::create(['date' => '2026-12-25', 'name' => 'Natal', 'kind' => HolidayKind::NACIONAL, 'closes' => true]);
+
+        Livewire::actingAs($this->admin())->test(Holidays::class)
+            ->assertSeeHtml('aria-label="A empresa fecha em Natal (25/12/2026)"');
+    }
+
+    public function test_updated_hooks_sao_so_do_admin(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => UserRole::SUPERVISOR]));
+
+        $this->expectException(AuthorizationException::class);
+        (new Holidays)->updatedPromptUf();
     }
 
     public function test_cancelar_limpa_a_previa(): void

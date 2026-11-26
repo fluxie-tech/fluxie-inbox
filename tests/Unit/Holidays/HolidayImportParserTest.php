@@ -55,6 +55,17 @@ class HolidayImportParserTest extends TestCase
         }
     }
 
+    public function test_bloco_markdown_com_qualquer_etiqueta_de_linguagem_e_lido(): void
+    {
+        $item = '[{"data":"2027-01-01","nome":"Ano Novo","tipo":"nacional"}]';
+
+        foreach (['JSON', 'javascript', 'Json'] as $tag) {
+            $result = $this->parse("Aqui:\n```{$tag}\n{$item}\n```\nFim.");
+            $this->assertNull($result['error'], $tag);
+            $this->assertSame('Ano Novo', $result['rows'][0]->name);
+        }
+    }
+
     public function test_arquivo_que_nao_e_lista_vazio_ou_grande_demais_da_um_erro_so(): void
     {
         $grande = json_encode(array_fill(0, 501, ['data' => '2027-01-01', 'nome' => 'X', 'tipo' => 'nacional']), JSON_THROW_ON_ERROR);

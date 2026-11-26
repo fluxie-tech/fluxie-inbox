@@ -86,7 +86,9 @@ class Holidays extends Component
 
     public function updatedPromptUf(): void
     {
-        $this->promptUf = mb_strtoupper(trim($this->promptUf));
+        $this->authorize('admin');
+
+        $this->promptUf = mb_substr(mb_strtoupper((string) preg_replace('/[^\p{L}]/u', '', $this->promptUf)), 0, 2);
     }
 
     public function updatedImportFile(HolidayImportParser $parser): void
@@ -112,7 +114,16 @@ class Holidays extends Component
             return;
         }
 
-        $this->imported = $import($this->readFile($this->importFile, $parser)['rows']);
+        $result = $this->readFile($this->importFile, $parser);
+
+        if ($result['error'] !== null) {
+            $this->reset('importFile', 'preview');
+            $this->importError = $result['error'];
+
+            return;
+        }
+
+        $this->imported = $import($result['rows']);
         $this->reset('importFile', 'preview', 'importError');
     }
 
@@ -126,13 +137,18 @@ class Holidays extends Component
     /** @return array{error: ?string, rows: list<HolidayImportRow>} */
     private function readFile(TemporaryUploadedFile $file, HolidayImportParser $parser): array
     {
+        if (! $file->exists()) {
+            return ['error' => 'O arquivo enviado expirou. Envie de novo.', 'rows' => []];
+        }
+
         $this->validate(['importFile' => ['file', 'max:100', 'extensions:json']], [
             'importFile.file' => 'Envie um arquivo .json de até 100 KB.',
             'importFile.max' => 'Envie um arquivo .json de até 100 KB.',
             'importFile.extensions' => 'Envie um arquivo .json de até 100 KB.',
         ]);
 
-        $existing = array_values(Holiday::query()->get()->map(fn (Holiday $holiday) => $holiday->date->format('Y-m-d'))->all());
+        /** @var list<string> $existing */
+        $existing = Holiday::query()->get(['date'])->map(fn (Holiday $holiday) => $holiday->date->format('Y-m-d'))->all();
 
         return $parser->parse((string) $file->get(), $existing);
     }
@@ -156,9 +172,16 @@ class Holidays extends Component
 
     private function promptText(): ?string
     {
-        $filled = $this->promptCity !== '' && $this->promptUf !== '' && CarbonImmutable::hasFormat($this->promptFrom, 'Y-m-d') && CarbonImmutable::hasFormat($this->promptTo, 'Y-m-d');
+        $city = mb_substr(trim($this->promptCity), 0, 80);
+        $valid = $city !== '' && mb_strlen($this->promptUf) === 2 && $this->isDate($this->promptFrom) && $this->isDate($this->promptTo) && $this->promptFrom <= $this->promptTo;
 
-        return $filled ? HolidayPrompt::for(trim($this->promptCity), $this->promptUf, $this->promptFrom, $this->promptTo) : null;
+        return $valid ? HolidayPrompt::for($city, $this->promptUf, $this->promptFrom, $this->promptTo) : null;
+    }
+
+    /** `Y-m-d` de calendário: a volta ao texto igual à entrada recusa 2026-02-31. */
+    private function isDate(string $text): bool
+    {
+        return CarbonImmutable::hasFormat($text, 'Y-m-d') && CarbonImmutable::createFromFormat('!Y-m-d', $text)?->format('Y-m-d') === $text;
     }
 
     public function render(): View

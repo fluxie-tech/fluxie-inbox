@@ -59,7 +59,7 @@ class HolidayImportParser
     /** O bloco Markdown vence; sem ele, do primeiro `[` ao último `]`; sem nenhum, o texto todo. */
     private function extractJson(string $contents): string
     {
-        if (preg_match('/```(?:json)?\s*(.*?)```/s', $contents, $block) === 1) {
+        if (preg_match('/```\w*\s*(.*?)```/s', $contents, $block) === 1) {
             return $block[1];
         }
 

@@ -27,7 +27,7 @@
                     <span class="font-mono text-xs text-ink-3">{{ $holiday->date->format('d/m/Y') }} {{ $weekdays[$holiday->date->dayOfWeek] }}</span> · {{ $holiday->name }}
                 </span>
                 <x-status-badge :status="$holiday->kind" />
-                <flux:switch :checked="$holiday->closes" wire:click="setCloses({{ $holiday->id }}, {{ $holiday->closes ? 'false' : 'true' }})" label="A empresa fecha" />
+                <flux:switch :checked="$holiday->closes" wire:click="setCloses({{ $holiday->id }}, {{ $holiday->closes ? 'false' : 'true' }})" label="A empresa fecha" aria-label="A empresa fecha em {{ $holiday->name }} ({{ $holiday->date->format('d/m/Y') }})" />
                 <flux:button type="button" size="xs" variant="subtle" icon="trash" wire:click="removeHoliday({{ $holiday->id }})" data-confirm="Remover este feriado?" data-confirm-label="Remover" data-confirm-tone="danger" aria-label="Remover feriado" />
             </li>
         @empty
