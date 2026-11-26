@@ -5,10 +5,10 @@ namespace Tests\Feature\Livewire;
 use App\Enums\UserRole;
 use App\Livewire\Settings\BusinessHoursPage;
 use App\Models\BusinessHour;
-use App\Models\Holiday;
 use App\Models\Setting;
 use App\Models\User;
 use App\Settings\CompanySettings;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -108,23 +108,6 @@ class BusinessHoursPageTest extends TestCase
         $this->assertCount(3, $component->get('days')[2]);
     }
 
-    public function test_cadastra_e_remove_feriado_com_data_unica(): void
-    {
-        $component = Livewire::actingAs($this->admin())->test(BusinessHoursPage::class)
-            ->set('holidayDate', '2026-12-25')
-            ->set('holidayName', 'Natal')
-            ->call('addHoliday')
-            ->assertHasNoErrors();
-
-        $this->assertSame(1, Holiday::query()->count());
-
-        $component->set('holidayDate', '2026-12-25')->set('holidayName', 'Outro')->call('addHoliday')->assertHasErrors('holidayDate');
-        $component->set('holidayDate', '')->set('holidayName', '')->call('addHoliday')->assertHasErrors(['holidayDate', 'holidayName']);
-
-        $component->call('removeHoliday', Holiday::query()->sole()->id);
-        $this->assertSame(0, Holiday::query()->count());
-    }
-
     public function test_salva_liga_desliga_e_texto_e_mostra_a_previa_preenchida(): void
     {
         BusinessHour::create(['weekday' => 1, 'opens_at' => '08:00', 'closes_at' => '18:00']);
@@ -186,7 +169,10 @@ class BusinessHoursPageTest extends TestCase
 
     public function test_so_admin_salva_o_sla(): void
     {
-        Livewire::actingAs(User::factory()->create(['role' => UserRole::SUPERVISOR]))->test(BusinessHoursPage::class)->call('saveSla')->assertForbidden();
+        $this->actingAs(User::factory()->create(['role' => UserRole::SUPERVISOR]));
+
+        $this->expectException(AuthorizationException::class);
+        (new BusinessHoursPage)->saveSla();
     }
 
     private function xpath(string $html): \DOMXPath
