@@ -51,5 +51,7 @@
                 @endforeach
             </ul>
         </x-panel>
+
+        <livewire:settings.auto-close />
     </div>
 </x-settings-page>
