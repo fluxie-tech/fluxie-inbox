@@ -177,6 +177,23 @@ class InboxQueueCardTest extends TestCase
         $this->assertStringContainsString('truncate', (string) $node?->getAttribute('class'));
     }
 
+    /** Coluna estreita: o responsável fica só com a foto na linha do selo (nada desce sozinho); com a coluna larga volta o primeiro nome. */
+    public function test_coluna_estreita_mostra_so_a_foto_do_atendente_e_a_larga_mostra_o_nome(): void
+    {
+        $this->ticket(['status' => TicketStatus::EM_ATENDIMENTO, 'assigned_user_id' => User::factory()->create(['name' => 'Marina Souza'])->id]);
+
+        $xpath = $this->xpath($this->html());
+        $name = $xpath->query('//*[@data-testid="card-assignee-name"]')->item(0);
+        $chip = $name?->parentNode;
+        $classes = explode(' ', (string) $name?->getAttribute('class'));
+
+        $this->assertSame(1, $xpath->query('//*[@data-testid="card-assignee-name"]/ancestor::*[contains(concat(" ", @class, " "), " @container ")]')->length, 'o conteúdo do card mede a própria largura');
+        $this->assertContains('hidden', $classes, 'estreito: só a foto');
+        $this->assertContains('@[17rem]:inline', $classes, 'largo: a foto e o primeiro nome');
+        $this->assertInstanceOf(\DOMElement::class, $chip);
+        $this->assertSame('Marina Souza', $chip->getAttribute('title'), 'o nome completo continua ao passar o mouse na foto');
+    }
+
     public function test_nome_com_espaco_no_comeco_ainda_mostra_o_primeiro_nome(): void
     {
         $this->ticket(['status' => TicketStatus::EM_ATENDIMENTO, 'assigned_user_id' => User::factory()->create(['name' => ' Marina Souza'])->id]);

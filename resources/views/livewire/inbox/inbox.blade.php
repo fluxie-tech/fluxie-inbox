@@ -135,7 +135,8 @@
                                 @endif
                             </span>
 
-                            <span class="min-w-0 flex-1">
+                            {{-- `@container`: a linha do selo decide pela largura do próprio card se o atendente mostra o nome ou só a foto. --}}
+                            <span class="@container min-w-0 flex-1">
                                 <span class="flex items-baseline justify-between gap-2">
                                     <span class="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{{ $item->contact->label() }}</span>
                                     <span data-testid="card-time" x-data="relativeTime('{{ $at->toIso8601String() }}', 'narrow')" x-text="label" class="shrink-0 font-mono text-xs text-ink-3">{{ \App\Support\WaitLabel::narrow($at, now()) }}</span>
@@ -171,13 +172,14 @@
                                                 <span data-testid="card-sector" class="max-w-24 truncate rounded bg-canvas px-1.5 py-0.5 text-xs text-ink-2">{{ $item->sector->name }}</span>
                                             @endif
                                             @if ($showAssignee)
-                                                <span class="inline-flex max-w-24 items-center gap-1 text-xs text-ink-2">
+                                                @php
+                                                    $fullName = trim((string) preg_replace('/^[\s\x{00A0}]+|[\s\x{00A0}]+$/u', '', $item->assignee->name));
+                                                @endphp
+                                                <span title="{{ $fullName }}" class="inline-flex max-w-24 items-center gap-1 text-xs text-ink-2">
                                                     <x-avatar :src="$item->assignee->avatarUrl()" :name="$item->assignee->name" shape="round" size="xs" decorative />
-                                                    @php
-                                                        $fullName = trim((string) preg_replace('/^[\s\x{00A0}]+|[\s\x{00A0}]+$/u', '', $item->assignee->name));
-                                                    @endphp
                                                     <span class="sr-only">Atendente: {{ $fullName }}</span>
-                                                    <span data-testid="card-assignee-name" aria-hidden="true" title="{{ $item->assignee->name }}" class="max-w-16 truncate">{{ preg_split('/[\s\x{00A0}]+/u', $fullName)[0] ?: $fullName }}</span>
+                                                    {{-- Coluna estreita: só a foto, para o atendente não descer sozinho para outra linha (17rem cabe selo, protocolo, foto e nome). --}}
+                                                    <span data-testid="card-assignee-name" aria-hidden="true" title="{{ $item->assignee->name }}" class="hidden max-w-16 truncate @[17rem]:inline">{{ preg_split('/[\s\x{00A0}]+/u', $fullName)[0] ?: $fullName }}</span>
                                                 </span>
                                             @endif
                                             @if ($unread > 0)
