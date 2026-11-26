@@ -2,7 +2,6 @@
 
 namespace App\Support;
 
-use App\Models\CloseReason;
 use App\Models\TicketEvent;
 use Carbon\CarbonImmutable;
 use Carbon\Exceptions\InvalidFormatException;
@@ -41,19 +40,10 @@ final class TicketEventText
         return self::TYPES[$type] ?? $type;
     }
 
-    /** O que aconteceu, em texto: motivo e resumo do encerramento e a espera do SLA; os demais não têm detalhe. */
+    /** O que aconteceu, em texto: a espera do SLA; os demais não têm detalhe aqui (o encerramento é da TicketTimeline). */
     public static function detail(TicketEvent $event): string
     {
         $payload = $event->payload ?? [];
-
-        if ($event->type === 'closed') {
-            $id = $payload['close_reason_id'] ?? null;
-            $outcome = is_int($id) ? (CloseReason::query()->find($id)->name ?? 'motivo removido') : null;
-            $reason = $outcome !== null || ! is_string($payload['reason'] ?? null) ? null : $payload['reason'];
-            $summary = is_string($payload['summary'] ?? null) ? $payload['summary'] : null;
-
-            return implode(' · ', array_filter([$outcome, $summary, $reason]));
-        }
 
         if ($event->type === 'sla_breached') {
             return self::slaDetail($payload);

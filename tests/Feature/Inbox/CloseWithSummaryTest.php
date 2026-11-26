@@ -50,6 +50,7 @@ class CloseWithSummaryTest extends TestCase
 
     private function reasonWithSummary(): CloseReason
     {
+        // Sem cedilha de propósito: o assertSeeInOrder compara com o JSON do Livewire, onde o ç sai como ç.
         return CloseReason::factory()->create(['name' => 'Orcamento', 'requires_summary' => true, 'active' => true, 'position' => 10]);
     }
 

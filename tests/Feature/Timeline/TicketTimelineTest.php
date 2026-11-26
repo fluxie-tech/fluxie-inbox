@@ -124,7 +124,6 @@ class TicketTimelineTest extends TestCase
         $motivo->update(['name' => 'Concluído']);
 
         $this->assertSame('Concluído', $this->timeline([$event])->detail($event));
-        $this->assertSame('Concluído', TicketEventText::detail($event));
     }
 
     public function test_motivo_apagado_aparece_como_motivo_removido(): void
@@ -132,7 +131,6 @@ class TicketTimelineTest extends TestCase
         $event = $this->event('closed', $this->ana, ['reason' => 'manual', 'close_reason_id' => 999999]);
 
         $this->assertSame('motivo removido', $this->timeline([$event])->detail($event));
-        $this->assertSame('motivo removido', TicketEventText::detail($event));
     }
 
     public function test_mensagens_nao_mostram_json_e_a_recebida_tem_rotulo(): void
