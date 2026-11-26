@@ -2,17 +2,48 @@
 
 namespace App\Livewire\Settings;
 
+use App\Actions\Holidays\ImportHolidays;
 use App\Enums\HolidayKind;
 use App\Models\Holiday;
+use App\Services\Holidays\HolidayImportParser;
+use App\Services\Holidays\HolidayImportRow;
+use App\Services\Holidays\HolidayPrompt;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithFileUploads;
 
-/** Os feriados do horário de atendimento: lista com tipo, cadastro à mão e a chave "a empresa fecha". */
+/** Os feriados do horário de atendimento: lista com tipo, cadastro à mão, a chave "a empresa fecha" e a importação por JSON. */
 class Holidays extends Component
 {
+    use WithFileUploads;
+
+    private const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+
     public string $holidayDate = '';
 
     public string $holidayName = '';
+
+    public string $promptCity = '';
+
+    public string $promptUf = '';
+
+    public string $promptFrom = '';
+
+    public string $promptTo = '';
+
+    /** @var TemporaryUploadedFile|null */
+    public $importFile;
+
+    public ?string $importError = null;
+
+    public ?int $imported = null;
+
+    /** @var list<array{date: string, weekday: string, name: string, kind: string, kindLabel: string, state: string, status: string}> */
+    #[Locked]
+    public array $preview = [];
 
     public function mount(): void
     {
@@ -53,8 +84,89 @@ class Holidays extends Component
         Holiday::query()->whereKey($id)->update(['closes' => $closes]);
     }
 
+    public function updatedPromptUf(): void
+    {
+        $this->promptUf = mb_strtoupper(trim($this->promptUf));
+    }
+
+    public function updatedImportFile(HolidayImportParser $parser): void
+    {
+        $this->authorize('admin');
+
+        $this->reset('preview', 'importError', 'imported');
+
+        if ($this->importFile === null) {
+            return;
+        }
+
+        $result = $this->readFile($this->importFile, $parser);
+        $this->importError = $result['error'];
+        $this->preview = array_map($this->previewLine(...), $result['rows']);
+    }
+
+    public function import(HolidayImportParser $parser, ImportHolidays $import): void
+    {
+        $this->authorize('admin');
+
+        if ($this->importFile === null) {
+            return;
+        }
+
+        $this->imported = $import($this->readFile($this->importFile, $parser)['rows']);
+        $this->reset('importFile', 'preview', 'importError');
+    }
+
+    public function cancelImport(): void
+    {
+        $this->authorize('admin');
+
+        $this->reset('importFile', 'preview', 'importError', 'imported');
+    }
+
+    /** @return array{error: ?string, rows: list<HolidayImportRow>} */
+    private function readFile(TemporaryUploadedFile $file, HolidayImportParser $parser): array
+    {
+        $this->validate(['importFile' => ['file', 'max:100', 'extensions:json']], [
+            'importFile.file' => 'Envie um arquivo .json de até 100 KB.',
+            'importFile.max' => 'Envie um arquivo .json de até 100 KB.',
+            'importFile.extensions' => 'Envie um arquivo .json de até 100 KB.',
+        ]);
+
+        $existing = array_values(Holiday::query()->get()->map(fn (Holiday $holiday) => $holiday->date->format('Y-m-d'))->all());
+
+        return $parser->parse((string) $file->get(), $existing);
+    }
+
+    /** @return array{date: string, weekday: string, name: string, kind: string, kindLabel: string, state: string, status: string} */
+    private function previewLine(HolidayImportRow $row): array
+    {
+        $date = $row->date === null ? null : CarbonImmutable::createFromFormat('!Y-m-d', $row->date);
+
+        return [
+            'date' => $date?->format('d/m/Y') ?? '—',
+            // Data de calendário, sem fuso: o dia da semana vem direto dela.
+            'weekday' => $date === null ? '' : self::WEEKDAYS[$date->dayOfWeek],
+            'name' => $row->name,
+            'kind' => $row->kind === null ? '' : $row->kind->value,
+            'kindLabel' => $row->kind === null ? '' : $row->kind->label(),
+            'state' => $row->error !== null ? 'error' : ($row->exists ? 'exists' : 'new'),
+            'status' => $row->error ?? ($row->exists ? 'Já cadastrado' : 'Novo'),
+        ];
+    }
+
+    private function promptText(): ?string
+    {
+        $filled = $this->promptCity !== '' && $this->promptUf !== '' && CarbonImmutable::hasFormat($this->promptFrom, 'Y-m-d') && CarbonImmutable::hasFormat($this->promptTo, 'Y-m-d');
+
+        return $filled ? HolidayPrompt::for(trim($this->promptCity), $this->promptUf, $this->promptFrom, $this->promptTo) : null;
+    }
+
     public function render(): View
     {
-        return view('livewire.settings.holidays', ['holidays' => Holiday::query()->orderBy('date')->get()]);
+        return view('livewire.settings.holidays', [
+            'holidays' => Holiday::query()->orderBy('date')->get(),
+            'prompt' => $this->promptText(),
+            'counts' => array_count_values(array_column($this->preview, 'state')),
+        ]);
     }
 }
