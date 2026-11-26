@@ -31,6 +31,7 @@ class AutoCloseClock
         $farewellWaits = $canMessage && AutoCloseSettings::farewellEnabled() && ! $open;
         $warnedAt = $ticket->auto_close_warned_at;
 
+        // Com marca válida só vale o Y a partir do aviso, mesmo com o aviso desligado depois ou o canal parado (decisão do controlador).
         if ($warnedAt !== null && $warnedAt->gt($last->sent_at)) {
             return $this->closeWhen($now >= $this->due($warnedAt, AutoCloseSettings::closeAfterWarnMinutes()), $farewellWaits);
         }

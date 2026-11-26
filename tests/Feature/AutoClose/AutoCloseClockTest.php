@@ -218,4 +218,60 @@ class AutoCloseClockTest extends TestCase
         $this->assertSame(AutoCloseStep::CLOSE, $this->step($ticket, $saturday, false));
         $this->assertSame(AutoCloseStep::NONE, $this->step($ticket, $saturday));
     }
+
+    public function test_marca_valida_com_canal_parado_encerra_em_y_mesmo_fora_do_horario_e_com_despedida_ligada(): void
+    {
+        $this->schedule();
+        AutoCloseSettings::save(['warn_enabled' => true, 'farewell_enabled' => true, 'close_after_warn_minutes' => 15]);
+        $ticket = $this->ticket();
+        $this->ours($ticket, $this->at('2026-11-27 16:00'));
+        $warned = $this->at('2026-11-28 10:00');
+        $ticket->forceFill(['auto_close_warned_at' => $warned])->save();
+
+        $this->assertSame(AutoCloseStep::NONE, $this->step($ticket, $warned->addMinutes(14), false));
+        $this->assertSame(AutoCloseStep::CLOSE, $this->step($ticket, $warned->addMinutes(15), false));
+
+        AutoCloseSettings::save(['farewell_enabled' => false]);
+        $this->assertSame(AutoCloseStep::CLOSE, $this->step($ticket, $warned->addMinutes(15), false));
+    }
+
+    public function test_marca_igual_ao_envio_da_ultima_nao_vale(): void
+    {
+        AutoCloseSettings::save(['warn_enabled' => true, 'idle_minutes' => 60, 'close_after_warn_minutes' => 15]);
+        $ticket = $this->ticket();
+        $sent = $this->at('2026-11-27 10:00');
+        $this->ours($ticket, $sent);
+        $ticket->forceFill(['auto_close_warned_at' => $sent])->save();
+
+        $this->assertSame(AutoCloseStep::NONE, $this->step($ticket, $sent->addMinutes(59)));
+        $this->assertSame(AutoCloseStep::WARN, $this->step($ticket, $sent->addMinutes(60)));
+    }
+
+    public function test_o_fuso_do_now_passado_nao_muda_o_resultado(): void
+    {
+        $this->schedule();
+        AutoCloseSettings::save(['warn_enabled' => true, 'idle_minutes' => 120, 'business_hours_only' => true]);
+        $ticket = $this->ticket();
+        $this->ours($ticket, $this->at('2026-11-27 17:00'));
+
+        foreach (['2026-11-30 08:59' => AutoCloseStep::NONE, '2026-11-30 09:00' => AutoCloseStep::WARN] as $local => $expected) {
+            $now = $this->at($local);
+
+            $this->assertSame($expected, $this->step($ticket, $now));
+            $this->assertSame($expected, $this->step($ticket, $now->setTimezone('America/Sao_Paulo')));
+        }
+    }
+
+    public function test_aviso_desligado_depois_da_marca_ainda_encerra_em_y(): void
+    {
+        AutoCloseSettings::save(['warn_enabled' => false, 'idle_minutes' => 60, 'close_after_warn_minutes' => 30]);
+        $ticket = $this->ticket();
+        $sent = $this->at('2026-11-27 10:00');
+        $this->ours($ticket, $sent);
+        $warned = $sent->addMinutes(61);
+        $ticket->forceFill(['auto_close_warned_at' => $warned])->save();
+
+        $this->assertSame(AutoCloseStep::NONE, $this->step($ticket, $warned->addMinutes(29)));
+        $this->assertSame(AutoCloseStep::CLOSE, $this->step($ticket, $warned->addMinutes(30)));
+    }
 }
