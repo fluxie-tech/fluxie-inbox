@@ -10,6 +10,7 @@ use App\Models\Message;
 use App\Models\Ticket;
 use App\Models\TicketEvent;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 use Throwable;
 
 /** As transições de status da mensagem que sai: enviada, aguardando conexão, arquivo perdido e falha. */
@@ -69,6 +70,17 @@ class OutboundStatus
             'delivery_status' => DeliveryStatus::FAILED,
             'failure_code' => SendFailure::REFUSED,
             'failure_reason' => 'O arquivo deste anexo não está mais disponível no servidor. Envie-o de novo.',
+        ]);
+        MessageStatusChanged::dispatch($message);
+    }
+
+    /** O aviso que esperava na fila e o chamado foi encerrado antes de sair: não se envia, e fica sem botão de reenvio. */
+    public function cancel(Message $message): void
+    {
+        $message->update([
+            'delivery_status' => DeliveryStatus::FAILED,
+            'failure_code' => SendFailure::CANCELLED,
+            'failure_reason' => SendFailure::reason(SendFailure::CANCELLED, new RuntimeException),
         ]);
         MessageStatusChanged::dispatch($message);
     }

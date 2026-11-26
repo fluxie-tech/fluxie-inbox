@@ -116,6 +116,7 @@ class AfterHoursReplyTest extends TestCase
         $reply = Message::query()->where('origin', MessageOrigin::BOT->value)->sole();
         $this->assertSame(MessageDirection::OUT, $reply->direction);
         $this->assertNull($reply->author_user_id);
+        $this->assertTrue($reply->auto_reply);
         $this->assertStringContainsString('de segunda a sexta, das 8h às 12h e das 13h às 18h; sábado, das 8h às 12h', $reply->body);
         $this->assertStringContainsString('Voltamos amanhã às 8h.', $reply->body);
         $this->assertStringNotContainsString('{{', $reply->body);

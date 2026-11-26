@@ -32,6 +32,9 @@ final class SendFailure
     /** Esperou 24 h pela conexão e não foi enviada. */
     public const EXPIRED = 'expired';
 
+    /** O aviso do encerramento automático que ficou na fila e perdeu o sentido: o chamado foi encerrado antes de ele sair. */
+    public const CANCELLED = 'cancelled';
+
     public static function kind(Throwable $error): string
     {
         $text = $error->getMessage();
@@ -59,6 +62,7 @@ final class SendFailure
             self::RATE_LIMIT => 'Limite do WhatsApp (463/475): aguarde antes de enviar de novo; não reinicie a sessão.',
             self::UNKNOWN => 'Sem resposta do WhatsApp: a mensagem pode ter sido enviada. Confira no celular do cliente antes de reenviar.',
             self::EXPIRED => 'Não foi enviada: o WhatsApp ficou desconectado por mais de 24 h.',
+            self::CANCELLED => 'Não foi enviada: o atendimento foi encerrado antes de o aviso sair.',
             default => Str::limit($error->getMessage(), 250),
         };
     }
@@ -71,7 +75,7 @@ final class SendFailure
     {
         return match ($code) {
             self::EXPIRED => 'safe',
-            self::RATE_LIMIT => 'none',
+            self::RATE_LIMIT, self::CANCELLED => 'none',
             default => 'confirm',
         };
     }

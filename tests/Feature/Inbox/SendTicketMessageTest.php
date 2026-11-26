@@ -5,6 +5,7 @@ namespace Tests\Feature\Inbox;
 use App\Enums\DeliveryStatus;
 use App\Enums\MessageDirection;
 use App\Enums\MessageOrigin;
+use App\Enums\TicketStatus;
 use App\Jobs\SendTicketMessageJob;
 use App\Models\Channel;
 use App\Models\Contact;
@@ -14,6 +15,7 @@ use App\Models\User;
 use App\Models\WahaEvent;
 use App\Services\Inbox\IngestMessage;
 use App\Services\Inbox\OutgoingMessages;
+use App\Services\Inbox\SendFailure;
 use App\Services\Inbox\SendTicketMessage;
 use App\Services\Waha\WahaRequestException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -80,6 +82,43 @@ class SendTicketMessageTest extends TestCase
 
         $this->assertSame(DeliveryStatus::SENT, $message->fresh()?->delivery_status);
         $this->assertSame(Message::waKey(self::SENT_ID), $message->fresh()?->wa_message_id);
+    }
+
+    public function test_aviso_do_encerramento_automatico_parado_na_fila_nao_sai_para_chamado_ja_encerrado(): void
+    {
+        Http::fake();
+        $this->ticket->update(['status' => TicketStatus::ENCERRADO, 'closed_at' => now()]);
+        $warning = app(OutgoingMessages::class)->create($this->ticket, null, 'Ainda está por aí?', MessageOrigin::BOT, autoReply: true);
+        Message::query()->whereKey($warning->id)->update(['created_at' => now()->subHours(2), 'delivery_status' => DeliveryStatus::QUEUED->value]);
+
+        app(SendTicketMessage::class)->deliver($warning->refresh());
+
+        Http::assertNothingSent();
+        $fresh = $warning->fresh();
+        $this->assertSame(DeliveryStatus::FAILED, $fresh?->delivery_status);
+        $this->assertSame(SendFailure::CANCELLED, $fresh->failure_code);
+        $this->assertSame('none', SendFailure::resend($fresh->failure_code));
+    }
+
+    public function test_despedida_do_encerramento_automatico_sai_depois_de_encerrar(): void
+    {
+        Http::fake(['*/api/sendText' => Http::response(['id' => self::SENT_ID], 201)]);
+        $this->ticket->update(['status' => TicketStatus::ENCERRADO, 'closed_at' => now()->subSecond()]);
+        $farewell = app(OutgoingMessages::class)->create($this->ticket, null, 'Encerramos o atendimento.', MessageOrigin::BOT, autoReply: true);
+
+        app(SendTicketMessage::class)->deliver($farewell);
+
+        $this->assertSame(DeliveryStatus::SENT, $farewell->fresh()?->delivery_status);
+    }
+
+    public function test_aviso_do_encerramento_automatico_sai_se_o_chamado_segue_aberto(): void
+    {
+        Http::fake(['*/api/sendText' => Http::response(['id' => self::SENT_ID], 201)]);
+        $warning = app(OutgoingMessages::class)->create($this->ticket, null, 'Ainda está por aí?', MessageOrigin::BOT, autoReply: true);
+
+        app(SendTicketMessage::class)->deliver($warning);
+
+        $this->assertSame(DeliveryStatus::SENT, $warning->fresh()?->delivery_status);
     }
 
     public function test_job_que_morre_antes_do_envio_marca_a_mensagem_como_falha(): void

@@ -37,6 +37,7 @@ use Illuminate\Support\Facades\DB;
  * @property CarbonImmutable|null $sla_warned_at
  * @property CarbonImmutable|null $sla_breached_at
  * @property CarbonImmutable|null $agent_seen_at
+ * @property CarbonImmutable|null $auto_close_warned_at
  * @property int|null $agent_seen_message_id
  * @property ClosedReason|null $closed_reason
  * @property int|null $close_reason_id
@@ -92,6 +93,7 @@ class Ticket extends Model
             'sla_warned_at' => 'datetime',
             'sla_breached_at' => 'datetime',
             'agent_seen_at' => 'datetime',
+            'auto_close_warned_at' => 'datetime',
             'closed_reason' => ClosedReason::class,
         ];
     }

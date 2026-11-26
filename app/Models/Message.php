@@ -35,6 +35,7 @@ use Illuminate\Support\Str;
  * @property CarbonImmutable|null $read_at
  * @property string|null $failure_reason
  * @property string|null $failure_code
+ * @property bool $auto_reply resposta automática (fora do horário): não conta como mensagem nossa no encerramento automático
  * @property string|null $media_ref
  * @property string|null $media_mime
  * @property string|null $media_name
@@ -66,6 +67,7 @@ use Illuminate\Support\Str;
     'read_at',
     'failure_reason',
     'failure_code',
+    'auto_reply',
     'media_ref',
     'media_mime',
     'media_name',
@@ -141,6 +143,7 @@ class Message extends Model
             'origin' => MessageOrigin::class,
             'delivery_status' => DeliveryStatus::class,
             'sent_at' => 'datetime',
+            'auto_reply' => 'boolean',
             'delivered_at' => 'datetime',
             'read_at' => 'datetime',
             'media_purged_at' => 'datetime',

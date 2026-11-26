@@ -56,6 +56,15 @@ Branch `feat/encerramento-atendimento`.
 - `resources/views/livewire/settings/closing.blade.php:35-39`: depois de uma recusa (desativar o último motivo ativo), os interruptores são recriados (`wire:key` com `$refusals`) e o foco do teclado cai no `body`. Devolver o foco ao interruptor depois do morph.
 - `resources/views/livewire/settings/sectors.blade.php:9-11`: provável erro duplicado no "Novo setor" (`@error('newName')` manual ao lado do `flux:input`, que já mostra o erro), o mesmo defeito corrigido na tela Encerramento. Conferir no navegador.
 
+## Menores adiados do encerramento, parte 3 (26/11/2026)
+
+Branch `feat/encerramento-automatico`.
+
+- Adoção do eco `fromMe` (`app/Services/Inbox/`) e `app/Services/AutoClose/AutoCloseMessages.php`: o eco de um aviso ou de uma despedida que chega fora da janela de 600 s não é adotado pela linha que criamos. Vira mensagem `fora_do_painel`, que conta como nossa e faz o aviso se repetir a cada X. No caso da despedida, com o chamado já encerrado, o eco abre um chamado novo só com a nossa despedida. Raro (o eco costuma chegar em segundos).
+- `app/Services/AutoClose/AutoCloseRun.php:51-59` e `AutoCloseMessages.php:39`: se o envio falhar depois do commit da decisão, fica estado parcial. No aviso, a marca fica gravada sem a mensagem e o chamado encerra em Y sem o cliente ter sido avisado. Na despedida, o chamado fica encerrado sem ela. O erro vai para o log. Saída: gravar a mensagem dentro da mesma transação da marca.
+- `app/Services/Inbox/SendFailure.php:65`: o motivo da mensagem automática cancelada diz "o aviso", mas o corte vale para qualquer `auto_reply`, inclusive a resposta fora do horário. Trocar por "a mensagem automática".
+- `app/Services/Inbox/SendTicketMessage.php:137`: um aviso parado na caixa de saída de um chamado que foi encerrado e depois reaberto não é cortado, porque o status voltou a ser aberto, e sai atrasado. É raro (canal parado e reabertura ao mesmo tempo).
+
 ## Pendências maiores já combinadas (não são menores de revisão)
 
 - Modernizar o `phpmd.xml` com o PHPMD mais recente.
