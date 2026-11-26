@@ -48,6 +48,12 @@ Nenhum pendente. P1, P3 e P5 corrigidos no branch (transação, tela limpa com S
 
 Nenhum pendente. Os três foram fechados na leva 4 (`fix/menores-leva-4`, 22/11).
 
+## Menores adiados do encerramento, parte 1 (26/11/2026)
+
+Branch `feat/encerramento-atendimento`.
+
+- `resources/js/settings-ui.js` (`sectorRow.save`): o campo de renomear fecha mesmo quando o servidor recusa o nome, e o erro aparece sob o nome antigo. É código compartilhado com Setores; decidir junto.
+
 ## Pendências maiores já combinadas (não são menores de revisão)
 
 - Modernizar o `phpmd.xml` com o PHPMD mais recente.

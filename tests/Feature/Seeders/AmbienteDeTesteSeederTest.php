@@ -10,6 +10,7 @@ use App\Enums\SectorStatus;
 use App\Enums\TagScope;
 use App\Enums\TicketStatus;
 use App\Models\Channel;
+use App\Models\CloseReason;
 use App\Models\Contact;
 use App\Models\Message;
 use App\Models\Sector;
@@ -20,6 +21,7 @@ use App\Models\TicketNote;
 use App\Models\User;
 use App\Services\Setup\DefaultSectors;
 use Database\Seeders\AmbienteDeTesteSeeder;
+use Database\Seeders\Cenarios\EncerradosComMotivo;
 use Database\Seeders\Cenarios\EtiquetasDosDoisEscopos;
 use Database\Seeders\Cenarios\UsuariosDeTeste;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -223,5 +225,19 @@ class AmbienteDeTesteSeederTest extends TestCase
         $abertos = Ticket::query()->where('status', TicketStatus::AGUARDANDO)->whereNotNull('waiting_since')->whereNotNull('sla_due_at');
         $this->assertTrue((clone $abertos)->where('sla_due_at', '<', now())->exists(), 'prazo estourado');
         $this->assertTrue((clone $abertos)->where('sla_due_at', '>', now())->exists(), 'prazo a vencer');
+    }
+
+    public function test_cria_encerrados_com_motivo_um_deles_desativado_e_o_cliente_com_historico(): void
+    {
+        $this->seed(AmbienteDeTesteSeeder::class);
+
+        $resolvido = Ticket::query()->where('close_reason_id', CloseReason::query()->where('name', 'Resolvido')->value('id'))->whereNotNull('close_summary')->firstOrFail();
+        $duplicado = CloseReason::query()->where('name', 'Duplicado')->firstOrFail();
+        $this->assertFalse($duplicado->active);
+        $encerrado = Ticket::query()->where('close_reason_id', $duplicado->id)->firstOrFail();
+        $this->assertSame(TicketStatus::ENCERRADO, $encerrado->status);
+        $this->assertSame($duplicado->id, $encerrado->events()->where('type', 'closed')->firstOrFail()->payload['close_reason_id']);
+        $this->assertGreaterThanOrEqual(2, Ticket::query()->where('contact_id', $resolvido->contact_id)->count());
+        $this->assertSame(EncerradosComMotivo::NOME_DO_CONTATO, $resolvido->contact->name);
     }
 }

@@ -7,6 +7,7 @@ use Database\Seeders\Cenarios\AlertasDoSino;
 use Database\Seeders\Cenarios\BolhasDeTamanhosVariados;
 use Database\Seeders\Cenarios\CanalConectado;
 use Database\Seeders\Cenarios\ConversaDaAutomacao;
+use Database\Seeders\Cenarios\EncerradosComMotivo;
 use Database\Seeders\Cenarios\EtiquetasDosDoisEscopos;
 use Database\Seeders\Cenarios\NomesLongos;
 use Database\Seeders\Cenarios\NotaInterna;
@@ -44,6 +45,7 @@ class AmbienteDeTesteSeeder extends Seeder
             ConversaDaAutomacao::class,
             AlertasDoSino::class,
             TicketsComSla::class,
+            EncerradosComMotivo::class,
         ]);
 
         SetupState::markConcluded();
