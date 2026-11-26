@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Console;
 
+use App\Actions\Inbox\CloseTicket;
 use App\Enums\ClosedReason;
 use App\Enums\MessageDirection;
 use App\Enums\MessageOrigin;
@@ -10,6 +11,7 @@ use App\Jobs\SendTicketMessageJob;
 use App\Models\BotSession;
 use App\Models\BusinessHour;
 use App\Models\Channel;
+use App\Models\CloseReason;
 use App\Models\Contact;
 use App\Models\Message;
 use App\Models\Ticket;
@@ -18,8 +20,11 @@ use App\Settings\AutoCloseSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Queue;
+use RuntimeException;
 use Tests\TestCase;
 
 class CloseInactiveTicketsTest extends TestCase
@@ -221,37 +226,112 @@ class CloseInactiveTicketsTest extends TestCase
         Queue::assertNotPushed(SendTicketMessageJob::class);
     }
 
-    public function test_limite_de_30_avisos_por_rodada(): void
+    public function test_limite_de_5_avisos_por_rodada(): void
     {
         Queue::fake();
         AutoCloseSettings::save(['warn_enabled' => true, 'idle_minutes' => 60]);
-        foreach (range(1, 35) as $i) {
+        foreach (range(1, 7) as $i) {
             $this->ours($this->ticket(), 61);
         }
 
-        $this->artisan('app:close-inactive-tickets')->expectsOutput('Avisos: 30. Encerrados: 0.')->assertSuccessful();
-        $this->assertSame(30, Message::query()->where('auto_reply', true)->count());
-        Queue::assertPushed(SendTicketMessageJob::class, 30);
-
         $this->artisan('app:close-inactive-tickets')->expectsOutput('Avisos: 5. Encerrados: 0.')->assertSuccessful();
-        $this->assertSame(35, Message::query()->where('auto_reply', true)->count());
-        Queue::assertPushed(SendTicketMessageJob::class, 35);
+        $this->assertSame(5, Message::query()->where('auto_reply', true)->count());
+        Queue::assertPushed(SendTicketMessageJob::class, 5);
+
+        $this->artisan('app:close-inactive-tickets')->expectsOutput('Avisos: 2. Encerrados: 0.')->assertSuccessful();
+        $this->assertSame(7, Message::query()->where('auto_reply', true)->count());
+        Queue::assertPushed(SendTicketMessageJob::class, 7);
     }
 
-    public function test_limite_de_30_despedidas_por_rodada_deixa_o_resto_aberto_para_a_proxima(): void
+    public function test_limite_de_5_despedidas_por_rodada_deixa_o_resto_aberto_para_a_proxima(): void
     {
         Queue::fake();
         AutoCloseSettings::save(['farewell_enabled' => true]);
-        foreach (range(1, 32) as $i) {
+        foreach (range(1, 7) as $i) {
             $this->ours($this->ticket(), 25 * 60);
         }
 
-        $this->artisan('app:close-inactive-tickets')->expectsOutput('Avisos: 0. Encerrados: 30.')->assertSuccessful();
+        $this->artisan('app:close-inactive-tickets')->expectsOutput('Avisos: 0. Encerrados: 5.')->assertSuccessful();
         $this->assertSame(2, Ticket::query()->where('status', TicketStatus::EM_ATENDIMENTO->value)->count());
-        Queue::assertPushed(SendTicketMessageJob::class, 30);
+        Queue::assertPushed(SendTicketMessageJob::class, 5);
 
         $this->artisan('app:close-inactive-tickets')->expectsOutput('Avisos: 0. Encerrados: 2.')->assertSuccessful();
-        Queue::assertPushed(SendTicketMessageJob::class, 32);
+        Queue::assertPushed(SendTicketMessageJob::class, 7);
+    }
+
+    public function test_erro_num_chamado_nao_para_a_rodada_e_solta_o_travamento(): void
+    {
+        Exceptions::fake();
+        $broken = $this->ticket();
+        $healthy = $this->ticket();
+        $this->ours($broken, 25 * 60);
+        $this->ours($healthy, 25 * 60);
+        $this->app->instance(CloseTicket::class, new class($broken->id) extends CloseTicket
+        {
+            public function __construct(private readonly int $failOn) {}
+
+            public function __invoke(Ticket $ticket, ?User $user, ClosedReason $reason = ClosedReason::MANUAL, ?CloseReason $closeReason = null, ?string $summary = null): bool
+            {
+                if ($ticket->id === $this->failOn) {
+                    throw new RuntimeException('falhou neste chamado');
+                }
+
+                return parent::__invoke($ticket, $user, $reason, $closeReason, $summary);
+            }
+        });
+
+        $this->artisan('app:close-inactive-tickets')->expectsOutput('Avisos: 0. Encerrados: 1.')->assertSuccessful();
+
+        $this->assertSame(TicketStatus::EM_ATENDIMENTO, $broken->fresh()?->status);
+        $this->assertSame(TicketStatus::ENCERRADO, $healthy->fresh()?->status);
+        Exceptions::assertReported(fn (RuntimeException $e): bool => $e->getMessage() === 'falhou neste chamado');
+        $lock = Cache::lock('bot-ticket-'.$broken->id, 5);
+        $this->assertTrue($lock->get());
+        $lock->release();
+    }
+
+    public function test_chamado_com_o_travamento_do_bot_ocupado_espera_a_proxima_rodada_e_nao_conta(): void
+    {
+        Queue::fake();
+        AutoCloseSettings::save(['warn_enabled' => true, 'idle_minutes' => 60]);
+        $busy = $this->ticket();
+        $free = $this->ticket();
+        $this->ours($busy, 61);
+        $this->ours($free, 61);
+        $held = Cache::lock('bot-ticket-'.$busy->id, 120);
+        $this->assertTrue($held->get());
+
+        $this->artisan('app:close-inactive-tickets')->expectsOutput('Avisos: 1. Encerrados: 0.')->assertSuccessful();
+
+        $this->assertNull($busy->fresh()?->auto_close_warned_at);
+        $this->assertSame(0, $this->autoReplies($busy));
+        $this->assertSame(1, $this->autoReplies($free));
+        $held->release();
+
+        $this->artisan('app:close-inactive-tickets')->expectsOutput('Avisos: 1. Encerrados: 0.')->assertSuccessful();
+        $this->assertSame(1, $this->autoReplies($busy));
+    }
+
+    public function test_os_ajustes_sao_lidos_uma_vez_por_rodada(): void
+    {
+        Queue::fake();
+        AutoCloseSettings::save(['warn_enabled' => true, 'idle_minutes' => 60]);
+        foreach (range(1, 5) as $i) {
+            $this->ours($this->ticket(), 61 + $i);
+        }
+
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            if (str_contains($query->sql, 'from "settings"')) {
+                $queries[] = $query->sql;
+            }
+        });
+
+        $this->artisan('app:close-inactive-tickets')->expectsOutput('Avisos: 5. Encerrados: 0.')->assertSuccessful();
+
+        // Uma leitura por chave (8), não uma por chamado.
+        $this->assertLessThanOrEqual(8, count($queries), implode('
+', $queries));
     }
 
     public function test_chamado_cuja_ultima_e_do_cliente_nao_ocupa_vaga_dos_500_candidatos(): void

@@ -6,7 +6,7 @@ use App\Enums\MessageDirection;
 use App\Enums\TicketStatus;
 use App\Models\Message;
 use App\Models\Ticket;
-use App\Settings\AutoCloseSettings;
+use App\Settings\AutoCloseSnapshot;
 use Carbon\CarbonImmutable;
 
 /**
@@ -18,7 +18,7 @@ class AutoCloseCandidates
     public const LIMIT = 500;
 
     /** @return array<int, int> */
-    public function ids(CarbonImmutable $now): array
+    public function ids(CarbonImmutable $now, AutoCloseSnapshot $config): array
     {
         $lastCounting = Message::query()
             ->select(['sent_at', 'direction'])
@@ -37,7 +37,7 @@ class AutoCloseCandidates
             ->where('lm.direction', MessageDirection::OUT->value)
             ->whereRaw(
                 'case when tickets.auto_close_warned_at is not null and tickets.auto_close_warned_at > lm.sent_at then tickets.auto_close_warned_at < ? else lm.sent_at < ? end',
-                [$now->subMinutes(AutoCloseSettings::closeAfterWarnMinutes()), $now->subMinutes(AutoCloseSettings::idleMinutes())],
+                [$now->subMinutes($config->closeAfterWarnMinutes), $now->subMinutes($config->idleMinutes)],
             )
             // Pendente com a sessão do bot esperando resposta não entra (o relógio também recusa); sem isto ocuparia vagas à toa.
             ->where(fn ($query) => $query

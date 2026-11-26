@@ -7,6 +7,7 @@ use App\Models\Message;
 use App\Models\Ticket;
 use App\Services\Inbox\BusinessHours;
 use App\Settings\AutoCloseSettings;
+use App\Settings\AutoCloseSnapshot;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 
@@ -16,7 +17,13 @@ use Carbon\CarbonInterface;
  */
 class AutoCloseClock
 {
-    public function __construct(private readonly BusinessHours $hours = new BusinessHours, private readonly LastCountingMessage $last = new LastCountingMessage) {}
+    private readonly AutoCloseSnapshot $config;
+
+    /** Sem `$config` lê os ajustes agora; a rodada passa o que já leu, para não voltar ao banco a cada chamado. */
+    public function __construct(private readonly BusinessHours $hours = new BusinessHours, private readonly LastCountingMessage $last = new LastCountingMessage, ?AutoCloseSnapshot $config = null)
+    {
+        $this->config = $config ?? AutoCloseSettings::snapshot();
+    }
 
     /** `$canMessage` é falso com o canal parado ou desativado: então não sai aviso nem despedida. */
     public function step(Ticket $ticket, CarbonInterface $now, bool $canMessage): AutoCloseStep
@@ -28,17 +35,17 @@ class AutoCloseClock
         }
 
         $open = $this->hours->isOpen($now);
-        $farewellWaits = $canMessage && AutoCloseSettings::farewellEnabled() && ! $open;
+        $farewellWaits = $canMessage && $this->config->farewellEnabled && ! $open;
         $warnedAt = $ticket->auto_close_warned_at;
 
         // Com marca válida só vale o Y a partir do aviso, mesmo com o aviso desligado depois ou o canal parado (decisão do controlador).
         if ($warnedAt !== null && $warnedAt->gt($last->sent_at)) {
-            return $this->closeWhen($now >= $this->due($warnedAt, AutoCloseSettings::closeAfterWarnMinutes()), $farewellWaits);
+            return $this->closeWhen($now >= $this->due($warnedAt, $this->config->closeAfterWarnMinutes), $farewellWaits);
         }
 
-        $idle = $now >= $this->due($last->sent_at, AutoCloseSettings::idleMinutes());
+        $idle = $now >= $this->due($last->sent_at, $this->config->idleMinutes);
 
-        if ($canMessage && AutoCloseSettings::warnEnabled()) {
+        if ($canMessage && $this->config->warnEnabled) {
             return $idle && $open ? AutoCloseStep::WARN : AutoCloseStep::NONE;
         }
 
@@ -54,7 +61,7 @@ class AutoCloseClock
     /** A última mensagem que conta, quando o chamado entra no encerramento automático e ela é nossa. */
     private function waitingOn(Ticket $ticket): ?Message
     {
-        $enters = AutoCloseSettings::enabled()
+        $enters = $this->config->enabled
             && in_array($ticket->status, [TicketStatus::PENDENTE, TicketStatus::EM_ATENDIMENTO], true)
             && ! ($ticket->status === TicketStatus::PENDENTE && $ticket->botSession()->active()->whereNotNull('expires_at')->exists());
 
@@ -65,7 +72,7 @@ class AutoCloseClock
 
     private function due(CarbonInterface $from, int $minutes): CarbonImmutable
     {
-        return AutoCloseSettings::businessHoursOnly()
+        return $this->config->businessHoursOnly
             ? $this->hours->addBusinessSeconds($from, $minutes * 60)
             : CarbonImmutable::instance($from)->addMinutes($minutes);
     }

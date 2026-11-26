@@ -8,6 +8,7 @@ use App\Jobs\SendTicketMessageJob;
 use App\Models\Ticket;
 use App\Services\Inbox\OutgoingMessages;
 use App\Settings\AutoCloseSettings;
+use App\Settings\AutoCloseSnapshot;
 
 /** As mensagens que o encerramento automático manda ao cliente: o aviso e a despedida, sem assinatura de atendente. */
 class AutoCloseMessages
@@ -23,11 +24,11 @@ class AutoCloseMessages
     }
 
     /** Cria a mensagem do passo dado e a põe na fila; falso se o passo não manda nada (despedida desligada ou canal parado). */
-    public function send(AutoCloseStep $step, Ticket $ticket): bool
+    public function send(AutoCloseStep $step, Ticket $ticket, AutoCloseSnapshot $config): bool
     {
         $template = match (true) {
-            $step === AutoCloseStep::WARN => AutoCloseSettings::warnMessage(),
-            $step === AutoCloseStep::CLOSE && AutoCloseSettings::farewellEnabled() && $this->canMessage($ticket) => AutoCloseSettings::farewellMessage(),
+            $step === AutoCloseStep::WARN => $config->warnMessage,
+            $step === AutoCloseStep::CLOSE && $config->farewellEnabled && $this->canMessage($ticket) => $config->farewellMessage,
             default => null,
         };
 

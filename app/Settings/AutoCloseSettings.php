@@ -28,6 +28,21 @@ final class AutoCloseSettings
         return self::flag('enabled', true);
     }
 
+    /** Todos os ajustes lidos de uma vez, para a rotina que decide centenas de chamados numa rodada. */
+    public static function snapshot(): AutoCloseSnapshot
+    {
+        return new AutoCloseSnapshot(
+            enabled: self::enabled(),
+            idleMinutes: self::idleMinutes(),
+            warnEnabled: self::warnEnabled(),
+            warnMessage: self::warnMessage(),
+            closeAfterWarnMinutes: self::closeAfterWarnMinutes(),
+            farewellEnabled: self::farewellEnabled(),
+            farewellMessage: self::farewellMessage(),
+            businessHoursOnly: self::businessHoursOnly(),
+        );
+    }
+
     /** Minutos sem resposta do cliente até avisar (ou encerrar, sem aviso). */
     public static function idleMinutes(): int
     {
