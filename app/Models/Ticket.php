@@ -41,11 +41,13 @@ use Illuminate\Support\Facades\DB;
  * @property int|null $agent_seen_message_id
  * @property ClosedReason|null $closed_reason
  * @property CloseOutcome|null $close_outcome
+ * @property int|null $close_reason_id
  * @property string|null $close_summary
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  *
  * @SuppressWarnings("PHPMD.CouplingBetweenObjects") o acoplamento vem dos tipos do Eloquent (relações, builders, casts)
+ * @SuppressWarnings("PHPMD.TooManyPublicMethods") um método por relação e escopo do ticket, de propósito
  */
 #[Fillable([
     'protocol',
@@ -282,6 +284,14 @@ class Ticket extends Model
     public function channel(): BelongsTo
     {
         return $this->belongsTo(Channel::class);
+    }
+
+    /**
+     * @return BelongsTo<CloseReason, $this>
+     */
+    public function closeReason(): BelongsTo
+    {
+        return $this->belongsTo(CloseReason::class);
     }
 
     /**
