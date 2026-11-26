@@ -2,17 +2,13 @@
 
 namespace App\Livewire\Contacts;
 
+use App\Actions\Contacts\ContactTags;
+use App\Actions\Contacts\ResyncContact;
 use App\Actions\Contacts\SaveContact;
-use App\Enums\TicketStatus;
-use App\Events\TicketUpdated;
-use App\Jobs\SyncContactToGoogleJob;
 use App\Livewire\Forms\ContactForm;
 use App\Models\Contact;
-use App\Models\Tag;
-use App\Models\Ticket;
 use App\Models\User;
-use App\Services\Google\ContactSyncStatus;
-use App\Services\Google\GoogleAccount;
+use App\Services\Contacts\ContactCardData;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Locked;
@@ -22,10 +18,7 @@ use Livewire\Component;
 /** Ficha editável do contato: vive no painel do inbox e na tela Contatos. */
 class ContactCard extends Component
 {
-    private const HISTORY_LIMIT = 5;
-
-    /** Etiquetas do contato por ficha: acima disso a ficha vira um mural de chips. */
-    public const MAX_TAGS = 20;
+    public const MAX_TAGS = ContactTags::MAX_TAGS;
 
     #[Locked]
     public int $contactId;
@@ -75,59 +68,45 @@ class ContactCard extends Component
         $this->dispatch('contact-saved', contactId: $this->contactId);
     }
 
-    /** Reenvia ao Google um contato que deu erro: zera o erro e a tentativa e enfileira de novo. */
-    public function resync(GoogleAccount $account): void
+    public function resync(ResyncContact $resync): void
     {
         abort_if($this->readonly, 403);
 
-        if (! $account->isConnected()) {
-            return;
-        }
-
-        $contact = $this->contact();
-        $contact->forceFill(['google_error' => null, 'google_attempted_at' => null])->save();
-
-        SyncContactToGoogleJob::dispatchWhenConnected($contact);
+        $resync($this->contact());
     }
 
-    /** Só `attach`/`detach`: o contato não é tocado, então o Google não é reenviado. Aplica só etiqueta do escopo `contato`. */
-    public function addTag(int $tagId): void
+    public function addTag(int $tagId, ContactTags $tags): void
     {
         abort_if($this->readonly, 403);
 
-        $tag = Tag::query()->ofContact()->find($tagId);
-        $contact = $this->contact();
+        $result = $tags->add($this->contact(), $tagId);
 
-        if ($tag === null || $contact->tags()->whereKey($tag->id)->exists()) {
-            return;
-        }
-
-        if ($contact->tags()->count() >= self::MAX_TAGS) {
-            $this->addError('tag', 'Limite de '.self::MAX_TAGS.' etiquetas por contato.');
+        if ($result === ContactTags::LIMIT) {
+            $this->addError('tag', 'Limite de '.ContactTags::MAX_TAGS.' etiquetas por contato.');
 
             return;
         }
 
-        $this->resetErrorBag('tag');
-        $contact->tags()->attach($tag->id);
-        $this->tagsChanged();
+        if ($result === ContactTags::ADDED) {
+            $this->resetErrorBag('tag');
+            $this->dispatch('tags-changed');
+        }
     }
 
-    public function removeTag(int $tagId): void
+    public function removeTag(int $tagId, ContactTags $tags): void
     {
         abort_if($this->readonly, 403);
 
-        $tag = Tag::query()->find($tagId);
-        $removed = $this->contact()->tags()->detach($tagId) > 0;
+        $result = $tags->remove($this->contact(), $tagId);
         $this->resetErrorBag('tag');
 
-        if ($removed) {
-            $this->tagsChanged();
+        if ($result['removed']) {
+            $this->dispatch('tags-changed');
             $this->dispatch('tag-removed');
 
-            if ($tag !== null) {
-                Flux::toast(text: 'Etiqueta «'.$tag->name.'» removida.', duration: 6000, action: [
-                    'label' => 'Desfazer', 'event' => 'undo-contact-tag', 'params' => ['ownerId' => $this->contactId, 'tagId' => $tag->id],
+            if ($result['name'] !== null) {
+                Flux::toast(text: 'Etiqueta «'.$result['name'].'» removida.', duration: 6000, action: [
+                    'label' => 'Desfazer', 'event' => 'undo-contact-tag', 'params' => ['ownerId' => $this->contactId, 'tagId' => $tagId],
                 ]);
             }
         }
@@ -135,22 +114,11 @@ class ContactCard extends Component
 
     /** O "Desfazer" do aviso de remoção (só age a ficha do próprio contato). Reaproveita as regras do `addTag`, inclusive o limite. */
     #[On('undo-contact-tag')]
-    public function undoRemove(int $ownerId, int $tagId): void
+    public function undoRemove(int $ownerId, int $tagId, ContactTags $tags): void
     {
         if ($ownerId === $this->contactId) {
-            $this->addTag($tagId);
+            $this->addTag($tagId, $tags);
         }
-    }
-
-    /**
-     * O card da fila mostra as etiquetas do contato: o navegador de quem editou se atualiza na hora e os demais atendentes pelo
-     * Reverb (um aviso por ticket aberto do contato; encerrado não aparece na fila).
-     */
-    private function tagsChanged(): void
-    {
-        $this->dispatch('tags-changed');
-
-        Ticket::query()->open()->where('contact_id', $this->contactId)->each(fn (Ticket $ticket) => TicketUpdated::dispatch($ticket));
     }
 
     public function addUrl(): void
@@ -181,32 +149,12 @@ class ContactCard extends Component
         }
     }
 
-    public function render(ContactSyncStatus $syncStatus): View
+    public function render(ContactCardData $data): View
     {
         $contact = $this->contact();
         $user = auth()->user();
         assert($user instanceof User);
 
-        $others = Ticket::query()->where('contact_id', $contact->id)->when($this->currentTicketId !== null, fn ($query) => $query->whereKeyNot($this->currentTicketId));
-        $history = (clone $others)->with(['sector', 'channel'])->latest('opened_at')->limit(self::HISTORY_LIMIT)->get();
-        $historyTotal = $others->count();
-
-        $contactTags = Tag::sortedByName($contact->tags()->get());
-
-        $current = $this->currentTicketId === null ? null : Ticket::query()->select(['id', 'channel_id', 'status'])->find($this->currentTicketId);
-
-        return view('livewire.contacts.contact-card', [
-            'contact' => $contact,
-            'contactTags' => $contactTags,
-            'availableTags' => Tag::sortedByName(Tag::query()->ofContact()->whereNotIn('id', $contactTags->pluck('id'))->get()),
-            'google' => $syncStatus->describe($contact),
-            'history' => $history,
-            'historyTotal' => $historyTotal,
-            'hasMore' => $historyTotal > self::HISTORY_LIMIT,
-            'openable' => Ticket::query()->readableBy($user)->whereIn('id', $history->modelKeys())->pluck('id')->all(),
-            // "Conversar" abre Nova conversa com o contato: em ticket ativo a conversa já está aberta, então só serve em encerrado ou sem ticket.
-            'canChat' => $current === null || $current->status === TicketStatus::ENCERRADO,
-            'currentChannelId' => $current?->channel_id,
-        ]);
+        return view('livewire.contacts.contact-card', ['contact' => $contact] + $data->for($contact, $this->currentTicketId, $user));
     }
 }

@@ -104,7 +104,7 @@ Laravel 13, Livewire 4.4, Flux 2, Reverb, Fortify, PostgreSQL 18, Redis 8. Vers�
   `CACHE_STORE=redis QUEUE_CONNECTION=redis SESSION_DRIVER=redis REDIS_CLIENT=predis REDIS_HOST=127.0.0.1 REDIS_PORT=6379 php artisan test --parallel`;
   remover com `docker rm -f redis-test`.
 - Portão 7: `vendor/bin/pint --parallel --test --cache-file=.pint.cache`, `vendor/bin/phpstan analyse --no-progress`,
-  `vendor/bin/phpmd analyze app --format text --ruleset phpmd.xml --baseline-file=phpmd.baseline.xml`, `node --test tests/js`,
+  `vendor/bin/phpmd analyze app --format text --ruleset phpmd.xml`, `node --test tests/js`,
   `npm run build` e a suíte com Redis. Ler o código de saída de cada um, sem `| tail` no meio (ou com `set -o pipefail`).
 - Composer no Git Bash é `composer.bat`. `composer.bat test` roda Pint, Larastan, PHPMD e a suíte em série, sem Redis. A
   cobertura mínima de 80% só é conferida no CI.

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Livewire;
 
+use App\Actions\Backup\DispatchRestore;
 use App\Enums\UserRole;
 use App\Jobs\RestoreDatabaseJob;
 use App\Livewire\Settings\Backups;
@@ -122,7 +123,7 @@ class BackupsRestoreTest extends TestCase
     public function test_pedido_com_a_trava_tomada_nao_despacha_e_o_pedido_solta_a_trava(): void
     {
         $page = $this->page()->call('chooseBackup', self::NAME)->set('confirm', 'RESTAURAR');
-        $outroDono = Cache::lock('restore-dispatch', Backups::DISPATCH_LOCK_SECONDS);
+        $outroDono = Cache::lock('restore-dispatch', DispatchRestore::LOCK_SECONDS);
         $this->assertTrue($outroDono->get());
 
         $page->call('restore')->assertSet('problem', 'Já há uma restauração em andamento.');

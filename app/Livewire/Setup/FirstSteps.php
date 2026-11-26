@@ -2,19 +2,14 @@
 
 namespace App\Livewire\Setup;
 
-use App\Actions\Channels\CreateChannel;
+use App\Actions\Setup\CreateSetupChannel;
 use App\Livewire\Concerns\ReceivesAvatar;
 use App\Models\Channel;
-use App\Models\Setting;
-use App\Models\Workflow;
-use App\Services\Bot\DefaultWorkflow;
-use App\Services\Bot\WorkflowPublisher;
 use App\Services\Media\AvatarImage;
 use App\Services\Setup\ApplySegment;
 use App\Services\Setup\SetupState;
 use App\Settings\CompanySettings;
 use Illuminate\Contracts\View\View;
-use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
@@ -28,9 +23,6 @@ class FirstSteps extends Component
 {
     use ReceivesAvatar;
 
-    /** O canal criado por este assistente, para retomar de onde parou. */
-    private const CHANNEL_KEY = 'setup.canal';
-
     public string $name = '';
 
     public string $sessionName = 'principal';
@@ -43,12 +35,9 @@ class FirstSteps extends Component
     {
         $this->guard();
 
-        // Sem nome salvo, o campo começa vazio: `CompanySettings::name()` devolveria o nome do produto.
-        $saved = Setting::get('company.name');
-        $this->name = is_string($saved) ? $saved : '';
+        $this->name = SetupState::companyName();
         $this->step = SetupState::step();
-        $id = $this->step === 'canal' ? Setting::get(self::CHANNEL_KEY) : null;
-        $this->channelId = is_int($id) ? $id : null;
+        $this->channelId = $this->step === 'canal' ? SetupState::channelId() : null;
     }
 
     public function saveLogo(): void
@@ -100,7 +89,7 @@ class FirstSteps extends Component
         $this->step = SetupState::step();
     }
 
-    public function createChannel(): void
+    public function createChannel(CreateSetupChannel $create): void
     {
         $this->guard();
 
@@ -108,24 +97,7 @@ class FirstSteps extends Component
             return;
         }
 
-        // A marca do canal entra junto com ele: sem ela, a retomada criaria um segundo canal.
-        $channel = DB::transaction(function (): Channel {
-            $channel = app(CreateChannel::class)($this->sessionName, auth()->user());
-
-            if (SetupState::segment() === ApplySegment::DISTRIBUIDORA) {
-                $workflow = Workflow::query()->where('name', DefaultWorkflow::NAME)->first();
-
-                if ($workflow !== null) {
-                    app(WorkflowPublisher::class)->activate($workflow, $channel);
-                }
-            }
-
-            Setting::put(self::CHANNEL_KEY, $channel->id, 'int');
-
-            return $channel;
-        });
-
-        $this->channelId = $channel->id;
+        $this->channelId = $create($this->sessionName, auth()->user())->id;
     }
 
     /** @param  array<string, mixed>  $payload */

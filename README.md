@@ -95,6 +95,7 @@ composer ci:check        # o que o CI roda: estilo, tipos, complexidade e testes
 | Tipos | Larastan, nível `max` | 0 erros, sem baseline nem `ignore` |
 | Complexidade | PHPMD (`phpmd.xml`) | ciclomática 10, NPath 200, classe 50 |
 | Tamanho | PHPMD (`phpmd.xml`) | método 100 linhas, classe 1000, 10 parâmetros, 25 métodos |
+| Acoplamento | PHPMD (`phpmd.xml`) | até 13 dependências por classe (CouplingBetweenObjects), sem baseline |
 | Código morto | PHPMD | campos, métodos e variáveis sem uso |
 | Cobertura | PHPUnit com `pcov` (só no CI) | mínimo 80% (medido: 83,8%), script `coverage` |
 | Dependências | `composer audit`, `npm audit` | sem vulnerabilidade `high` ou acima; job `audit` à parte |

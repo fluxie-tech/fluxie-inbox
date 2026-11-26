@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Livewire;
 
+use App\Actions\Backup\RunManualBackup;
 use App\Enums\UserRole;
 use App\Livewire\Settings\Backups;
 use App\Models\AuditLog;
@@ -209,7 +210,7 @@ class BackupsPageTest extends TestCase
         });
         $this->actingAs($this->admin());
 
-        (new Backups)->runNow(new ManualBackupState);
+        (new Backups)->runNow(app(RunManualBackup::class));
 
         $this->assertSame(1, $reads);
     }

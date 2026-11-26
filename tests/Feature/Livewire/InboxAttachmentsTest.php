@@ -13,6 +13,8 @@ use App\Models\Contact;
 use App\Models\Message;
 use App\Models\Ticket;
 use App\Models\User;
+use App\Services\Inbox\OutgoingMessages;
+use App\Services\Inbox\SendTicketMedia;
 use App\Settings\CompanySettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -22,6 +24,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
+use RuntimeException;
 use Tests\TestCase;
 
 class InboxAttachmentsTest extends TestCase
@@ -109,6 +112,36 @@ class InboxAttachmentsTest extends TestCase
         $this->attach($component, ['foto.jpg' => self::JPEG]);
 
         $component->assertCount('attachments', 1);
+    }
+
+    public function test_erro_inesperado_no_segundo_arquivo_apaga_so_o_ja_enviado_e_mantem_o_resto_na_bandeja(): void
+    {
+        $component = $this->inbox();
+        $this->attach($component, ['a.jpg' => self::JPEG, 'b.jpg' => self::JPEG]);
+        $files = $component->get('attachments');
+
+        $this->app->bind(SendTicketMedia::class, fn () => new class(app(OutgoingMessages::class)) extends SendTicketMedia
+        {
+            private int $calls = 0;
+
+            public function __invoke(Ticket $ticket, ?User $author, UploadedFile $file, string $caption = '', bool $voice = false, ?Message $quoted = null): Message
+            {
+                if (++$this->calls === 2) {
+                    throw new RuntimeException('queda do banco');
+                }
+
+                return parent::__invoke($ticket, $author, $file, $caption, $voice, $quoted);
+            }
+        });
+
+        try {
+            $component->call('send');
+        } catch (RuntimeException) {
+            // esperado: só importa o que sobrou em disco
+        }
+
+        $this->assertFalse($files[0]->exists());
+        $this->assertTrue($files[1]->exists());
     }
 
     public function test_no_maximo_dez_arquivos_por_envio(): void

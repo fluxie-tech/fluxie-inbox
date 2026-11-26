@@ -17,6 +17,9 @@ final class SetupState
 
     public const SEGMENT = 'setup.segmento';
 
+    /** O canal criado pelo assistente, para retomar de onde parou. */
+    public const CHANNEL_KEY = 'setup.canal';
+
     public const STEPS = ['empresa', 'segmento', 'canal'];
 
     public const SEGMENTS = [ApplySegment::DISTRIBUIDORA, ApplySegment::EM_BRANCO];
@@ -68,6 +71,21 @@ final class SetupState
         $segment = Setting::get(self::SEGMENT);
 
         return is_string($segment) ? $segment : null;
+    }
+
+    /** Sem nome salvo, vazio: `CompanySettings::name()` devolveria o nome do produto. */
+    public static function companyName(): string
+    {
+        $name = Setting::get('company.name');
+
+        return is_string($name) ? $name : '';
+    }
+
+    public static function channelId(): ?int
+    {
+        $id = Setting::get(self::CHANNEL_KEY);
+
+        return is_int($id) ? $id : null;
     }
 
     public static function setSegment(string $segment): void

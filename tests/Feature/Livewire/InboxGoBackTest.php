@@ -50,6 +50,21 @@ class InboxGoBackTest extends TestCase
             ->assertSet('ticketId', $ticket->id);
     }
 
+    public function test_link_com_ticket_mostra_o_aviso_e_o_rascunho_da_nova_conversa(): void
+    {
+        $user = User::factory()->create(['role' => UserRole::ADMIN]);
+        $ticket = $this->ticket('2026-000812');
+        $ticket->update(['status' => TicketStatus::EM_ATENDIMENTO, 'assigned_user_id' => $user->id]);
+        session()->flash('inbox-notice', 'Já existe uma conversa aberta.');
+        session()->flash('inbox-draft', 'Posso falar agora?');
+
+        Livewire::withQueryParams(['ticket' => $ticket->id])
+            ->actingAs($user)->test(Inbox::class)
+            ->assertSet('ticketId', $ticket->id)
+            ->assertSet('notice', 'Já existe uma conversa aberta.')
+            ->assertSet('draft', 'Posso falar agora?');
+    }
+
     public function test_ticket_da_url_de_outro_setor_nao_abre(): void
     {
         $ticket = Ticket::factory()->create([

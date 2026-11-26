@@ -2,34 +2,18 @@
 
 namespace App\Livewire\Settings;
 
-use App\Enums\AuditAction;
-use App\Jobs\RestoreDatabaseJob;
-use App\Models\SystemUpdate;
-use App\Services\Audit\Auditor;
-use App\Services\Backup\BackupCatalog;
-use App\Services\Backup\BackupFile;
-use App\Services\Backup\ManualBackupState;
-use App\Services\Backup\Restore\AdminDatabase;
-use App\Services\Backup\Restore\DumpInfo;
-use App\Services\Backup\Restore\DumpInspector;
+use App\Actions\Backup\DispatchRestore;
+use App\Actions\Backup\RunManualBackup;
+use App\Services\Backup\BackupOverview;
+use App\Services\Backup\Restore\BackupReview;
 use App\Services\Backup\Restore\InvalidDump;
-use App\Services\Backup\Restore\Maintenance;
-use App\Services\Backup\Restore\RestoreDatabase;
-use App\Services\Backup\Restore\RestoreProgress;
-use App\Services\Backup\Restore\RestoreRequest;
-use App\Services\Backup\Restore\RestoreSource;
-use App\Services\Backup\Restore\StoredDatabase;
-use App\Settings\BackupStatus;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithFileUploads;
-use Throwable;
 
 #[Title('Backup do banco')]
 class Backups extends Component
@@ -55,60 +39,28 @@ class Backups extends Component
 
     public ?string $problem = null;
 
-    /** Tempo do trinco de despacho: cobre um `blocker()` lento (conexão ao banco de administração) sem soltar o trinco antes da hora. */
-    public const DISPATCH_LOCK_SECONDS = 120;
-
-    private const UPDATE_RUNNING = 'Há uma atualização do sistema em andamento; espere ela terminar.';
-
     public function mount(): void
     {
         $this->authorize('admin');
     }
 
     /** Enfileira o mesmo backup da rotina diária, como manual (um dump pode levar minutos: não roda no request). */
-    public function runNow(ManualBackupState $state): void
+    public function runNow(RunManualBackup $run): void
     {
         $this->authorize('admin');
 
-        $progress = app(RestoreProgress::class)->get();
-
-        if ($progress['status'] === 'running') {
-            $this->problem = $progress['kind'] === 'reset'
-                ? 'Há um zerar do sistema em andamento; espere ele terminar para fazer um backup.'
-                : 'Há uma restauração em andamento; espere ela terminar para fazer um backup.';
-
-            return;
-        }
-
-        if (SystemUpdate::open() !== null) {
-            $this->problem = self::UPDATE_RUNNING;
-
-            return;
-        }
-
-        if ($state->isRunning()) {
-            $this->problem = 'Já há um backup em andamento.';
-
-            return;
-        }
-
-        $this->problem = null;
-        $state->markStarted();
-
-        // Fila `history`: o worker dela aguenta até 900 s; na `default` (120 s) um dump longo mataria o worker e as outras filas.
-        Artisan::queue('app:backup-database', ['--manual' => true])->onQueue('history');
-        Auditor::record(AuditAction::BackupManualRequested, Auth::user());
+        $this->problem = $run(Auth::user());
     }
 
     /** Abre a conferência de um backup da lista. */
-    public function chooseBackup(string $name): void
+    public function chooseBackup(string $name, BackupReview $review): void
     {
         $this->authorize('admin');
-        $this->open('bucket:'.$name);
+        $this->open('bucket:'.$name, $review);
     }
 
     /** O arquivo enviado do computador vai para o bucket (em `restauracao/`, fora da lista de backups) e abre a conferência. */
-    public function updatedUpload(): void
+    public function updatedUpload(BackupReview $review): void
     {
         $this->authorize('admin');
 
@@ -126,56 +78,54 @@ class Backups extends Component
             'upload.max' => 'O arquivo passa do limite de '.config()->integer('backup.restore.upload_max_mb').' MB.',
         ]);
 
-        $path = $this->upload instanceof UploadedFile ? $this->upload->getRealPath() : false;
+        $upload = $this->upload instanceof UploadedFile ? $this->upload : null;
         $this->upload = null;
 
-        if ($path === false) {
-            $this->problem = 'Não foi possível ler o arquivo enviado.';
-
-            return;
-        }
-
         try {
-            $this->open(app(RestoreSource::class)->storeUpload($path));
+            $source = $upload === null ? null : $review->fromUpload($upload);
+
+            if ($source === null) {
+                $this->problem = 'Não foi possível ler o arquivo enviado.';
+
+                return;
+            }
+
+            $this->open($source, $review);
         } catch (InvalidDump $e) {
             $this->problem = $e->getMessage();
         }
     }
 
     /** Abre a conferência de um banco guardado para voltar a ele. */
-    public function chooseStored(string $name): void
+    public function chooseStored(string $name, BackupReview $review): void
     {
         $this->authorize('admin');
-        $this->cancelRestore();
+        $this->cancelRestore($review);
 
-        $stored = collect($this->storedDatabases())->firstWhere('name', $name);
+        $info = $review->reviewStored($name);
 
-        if (! $stored instanceof StoredDatabase) {
+        if ($info === null) {
             $this->problem = 'Esse banco guardado não existe mais.';
 
             return;
         }
 
-        $this->target = $stored->name;
-        $this->info = [
-            'name' => $stored->name,
-            'created' => $stored->createdAt->format('d/m/Y H:i'),
-            'size' => $this->megabytes($stored->bytes),
-        ];
+        $this->target = $info['name'];
+        $this->info = $info;
     }
 
-    public function cancelRestore(): void
+    public function cancelRestore(BackupReview $review): void
     {
         $this->authorize('admin');
 
         if ($this->source !== null) {
-            app(RestoreSource::class)->discard($this->source);
+            $review->discard($this->source);
         }
 
         $this->reset('source', 'target', 'info', 'confirm', 'problem');
     }
 
-    public function restore(): void
+    public function restore(DispatchRestore $dispatch): void
     {
         $this->authorize('admin');
 
@@ -185,10 +135,10 @@ class Backups extends Component
             return;
         }
 
-        $this->start(new RestoreRequest('restore', $this->source, $this->actor()), RestoreDatabase::RESTORE_STEPS, 'Restaurando o banco');
+        $this->start($dispatch, 'restore', $this->source);
     }
 
-    public function switchBack(): void
+    public function switchBack(DispatchRestore $dispatch): void
     {
         $this->authorize('admin');
 
@@ -198,174 +148,34 @@ class Backups extends Component
             return;
         }
 
-        $this->start(new RestoreRequest('switch', $this->target, $this->actor()), RestoreDatabase::SWITCH_STEPS, 'Voltando para o banco guardado');
+        $this->start($dispatch, 'switch', $this->target);
     }
 
-    public function render(BackupCatalog $catalog): View
+    public function render(BackupOverview $overview): View
     {
-        $timezone = config()->string('app.display_timezone');
-        $files = [];
-        $unreadable = false;
-
-        try {
-            $files = $catalog->all();
-        } catch (Throwable $e) {
-            // Bucket inexistente ou chave errada: a tela é onde o admin diagnostica, então ela avisa em vez de dar erro 500.
-            report($e);
-            $unreadable = true;
-        }
-
-        $restoring = app(RestoreProgress::class)->isRunning();
-        $lastRestore = BackupStatus::lastRestore();
-
-        return view('livewire.settings.backups', [
-            'files' => $files,
-            'unreadable' => $unreadable,
-            'bytes' => array_sum(array_map(fn (BackupFile $file): int => $file->size, $files)),
-            'lastSuccess' => BackupStatus::lastSuccessAt()?->setTimezone($timezone),
-            'lastError' => BackupStatus::lastError(),
-            'keep' => config('backup.keep'),
-            'hour' => config()->string('backup.hour'),
-            'stored' => $this->storedDatabases(),
-            'manual' => app(ManualBackupState::class)->get(),
-            'restoring' => $restoring,
-            'lastRestore' => $lastRestore === null ? null : [...$lastRestore, 'at' => $lastRestore['at']->setTimezone($timezone)],
-            'confirmWord' => config()->string('backup.restore.confirm_word'),
-            'uploadMaxMb' => config()->integer('backup.restore.upload_max_mb'),
-            'allowUpload' => config()->boolean('backup.restore.allow_upload'),
-        ]);
+        return view('livewire.settings.backups', $overview->forView());
     }
 
-    /** Lê o arquivo (cópia temporária, cabeçalho, lista de permissão) e abre a conferência; o enviado inválido não fica no bucket. */
-    private function open(string $source): void
+    /** Abre a conferência do arquivo; o inválido fica só como o aviso da tela. */
+    private function open(string $source, BackupReview $review): void
     {
-        $this->cancelRestore();
-        $sources = app(RestoreSource::class);
-        $path = null;
+        $this->cancelRestore($review);
 
         try {
-            $fetched = $sources->fetch($source);
-            $path = $fetched['path'];
-            $info = app(DumpInspector::class)->inspect($path, $fetched['name']);
+            $this->info = $review->review($source);
             $this->source = $source;
-            $this->info = $this->describe($info);
         } catch (InvalidDump $e) {
             $this->problem = $e->getMessage();
-            $sources->discard($source);
-        } finally {
-            $path === null || $sources->discardTemporary($path);
         }
     }
 
-    /**
-     * As verificações que a tela faz antes de despachar (a palavra de confirmação, nada em andamento, o ambiente pronto).
-     *
-     * @param  list<string>  $steps
-     */
-    private function start(RestoreRequest $request, array $steps, string $title): void
+    /** Despacha a restauração: com a recusa, a tela mostra o motivo; sem ela, segue para o acompanhamento. */
+    private function start(DispatchRestore $dispatch, string $mode, string $source): void
     {
-        // Trinco curto: sem ele, dois pedidos simultâneos passam juntos pelo `isRunning()` antes de o primeiro marcar o andamento.
-        $latch = Cache::lock('restore-dispatch', self::DISPATCH_LOCK_SECONDS);
+        $this->problem = $dispatch($mode, $source, $this->info['name'] ?? $source, $this->confirm, Auth::user());
 
-        if (! $latch->get()) {
-            $this->problem = 'Já há uma restauração em andamento.';
-
-            return;
+        if ($this->problem === null) {
+            $this->redirect(route('restauracao'));
         }
-
-        try {
-            $this->dispatchRestore($request, $steps, $title);
-        } finally {
-            $latch->release();
-        }
-    }
-
-    /** @param  list<string>  $steps */
-    private function dispatchRestore(RestoreRequest $request, array $steps, string $title): void
-    {
-        $this->problem = $this->blocker();
-
-        if ($this->problem !== null) {
-            return;
-        }
-
-        // O pedido fica no banco de agora; o resultado (`RestoreDatabase::log`) fica no banco que estiver ativo depois da troca. Grava
-        // antes do job: com a fila `sync` (ou um worker muito rápido) o job troca o banco e o pedido cairia depois do resultado.
-        $name = $this->info['name'] ?? $request->source;
-        Auditor::record($request->mode === 'switch' ? AuditAction::RestoreSwitched : AuditAction::RestoreRequested, Auth::user(), $name);
-
-        // O andamento já aparece na página de acompanhamento antes de o worker pegar o job.
-        app(RestoreProgress::class)->begin($title, $steps);
-        RestoreDatabaseJob::dispatch($request);
-
-        $this->redirect(route('restauracao'));
-    }
-
-    private function blocker(): ?string
-    {
-        if ($this->confirm !== config()->string('backup.restore.confirm_word')) {
-            return 'Digite '.config()->string('backup.restore.confirm_word').' para confirmar.';
-        }
-
-        $progress = app(RestoreProgress::class)->get();
-
-        if ($progress['status'] === 'running') {
-            return $progress['kind'] === 'reset' ? 'Há um zerar do sistema em andamento.' : 'Já há uma restauração em andamento.';
-        }
-
-        if (SystemUpdate::open() !== null) {
-            return self::UPDATE_RUNNING;
-        }
-
-        $environment = app(Maintenance::class)->problem();
-
-        if ($environment !== null) {
-            return $environment;
-        }
-
-        try {
-            return app(AdminDatabase::class)->canCreate() ? null : 'O usuário do banco não pode criar bancos (precisa ser superusuário ou ter CREATEDB).';
-        } catch (Throwable $e) {
-            report($e);
-
-            return 'Não foi possível conectar ao banco de administração (`postgres`) com o usuário do app.';
-        }
-    }
-
-    /** @return list<StoredDatabase> */
-    private function storedDatabases(): array
-    {
-        try {
-            return app(AdminDatabase::class)->stored();
-        } catch (Throwable) {
-            return [];
-        }
-    }
-
-    /** @return array<string, string> */
-    private function describe(DumpInfo $info): array
-    {
-        return [
-            'name' => $info->name,
-            'created' => $info->createdAt->setTimezone(config()->string('app.display_timezone'))->format('d/m/Y H:i'),
-            'database' => $info->database,
-            'server' => $info->serverVersion,
-            'dump' => $info->dumpVersion,
-            'compression' => $info->compression,
-            'size' => $this->megabytes($info->size),
-            'entries' => (string) $info->entries,
-        ];
-    }
-
-    private function megabytes(int $bytes): string
-    {
-        return number_format($bytes / 1_000_000, 1, ',', '.').' MB';
-    }
-
-    private function actor(): string
-    {
-        $user = Auth::user();
-
-        return $user === null ? 'desconhecido' : $user->name.' <'.$user->email.'>';
     }
 }

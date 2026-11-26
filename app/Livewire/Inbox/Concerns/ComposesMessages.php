@@ -2,18 +2,15 @@
 
 namespace App\Livewire\Inbox\Concerns;
 
-use App\Enums\TicketStatus;
-use App\Jobs\SendTicketMessageJob;
-use App\Models\Message;
+use App\Actions\Inbox\SendComposedMessage;
 use App\Models\QuickReply;
 use App\Models\Ticket;
+use App\Services\Inbox\AgentRateLimits;
 use App\Services\Inbox\AttachmentRules;
-use App\Services\Inbox\OutgoingMessages;
 use App\Services\Inbox\Presence;
+use App\Services\Inbox\QuickReplyLookup;
 use App\Services\Inbox\SendTicketMedia;
-use App\Services\Inbox\Signature;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\RateLimiter;
 use InvalidArgumentException;
 use Livewire\Attributes\Renderless;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
@@ -21,20 +18,11 @@ use Livewire\WithFileUploads;
 
 /**
  * A barra de envio do inbox: texto, bandeja de arquivos e gravador de voz. O componente que usa precisa oferecer
- * `selected()` (o ticket na tela, já filtrado pela visibilidade) e `user()`.
+ * `selected()` (o ticket na tela, já filtrado pela visibilidade), `user()` e `lookup()`.
  */
 trait ComposesMessages
 {
     use WithFileUploads;
-
-    /** Tamanho máximo de uma mensagem de texto do WhatsApp na tela. */
-    private const MESSAGE_LIMIT = 4096;
-
-    /** Legenda de mídia no WhatsApp: acima disto o texto sai como mensagem separada. */
-    private const CAPTION_LIMIT = 1024;
-
-    /** "Gravando áudio…" chega a cada poucos segundos; limite próprio, mais folgado que o de envio. */
-    private const PRESENCE_PER_MINUTE = 20;
 
     public string $draft = '';
 
@@ -60,15 +48,7 @@ trait ComposesMessages
     #[Renderless]
     public function closedDraftTickets(array $ids): array
     {
-        $valid = array_values(array_filter(array_slice($ids, 0, 200), fn ($id): bool => is_int($id) && $id > 0));
-
-        $closed = Ticket::query()->readableBy($this->user())
-            ->whereIn('id', $valid)
-            ->where('status', TicketStatus::ENCERRADO->value)
-            ->get(['id'])
-            ->map(fn (Ticket $ticket): int => $ticket->id);
-
-        return array_values($closed->all());
+        return $this->lookup()->closedAmong($this->user(), $ids);
     }
 
     public function toggleQuickReplies(): void
@@ -85,7 +65,7 @@ trait ComposesMessages
      */
     public function allQuickReplies(): Collection
     {
-        return QuickReply::forUser($this->user())->orderBy('shortcut')->limit(50)->get();
+        return app(QuickReplyLookup::class)->all($this->user());
     }
 
     /** O rascunho `/pre` chama as respostas rápidas do usuário; o texto entra no campo, editável. */
@@ -93,24 +73,7 @@ trait ComposesMessages
     {
         $this->authorize('reply', $this->selected());
 
-        $this->draft = QuickReply::forUser($this->user())->findOrFail($id)->body;
-    }
-
-    private function expandTypedShortcut(): bool
-    {
-        if (preg_match('#^/([a-z0-9_-]+)$#i', $this->draft, $m) !== 1) {
-            return false;
-        }
-
-        $reply = QuickReply::forUser($this->user())->where('shortcut', strtolower($m[1]))->first();
-
-        if ($reply === null) {
-            return false;
-        }
-
-        $this->draft = $reply->body;
-
-        return true;
+        $this->draft = app(QuickReplyLookup::class)->body($this->user(), $id);
     }
 
     /**
@@ -118,7 +81,7 @@ trait ComposesMessages
      */
     public function quickReplies(): Collection
     {
-        return QuickReply::forUser($this->user())->matching($this->draft)->get();
+        return app(QuickReplyLookup::class)->matching($this->user(), $this->draft);
     }
 
     /** Entra na bandeja o arquivo que acabou de subir (um por requisição); o servidor decide se ele fica. */
@@ -180,46 +143,29 @@ trait ComposesMessages
         $this->draft = trim($this->draft);
 
         // `/ok` + Enter vira o texto cadastrado, no campo e editável; o envio é o próximo Enter.
-        if ($this->expandTypedShortcut()) {
+        $expanded = app(QuickReplyLookup::class)->expandShortcut($this->user(), $this->draft);
+
+        if ($expanded !== null) {
+            $this->draft = $expanded;
+
             return;
         }
 
         $this->resetErrorBag();
         $this->validateDraft();
 
-        $captioned = $this->captionsFirstFile();
-        $separateText = $this->draft !== '' && ! $captioned;
+        $result = app(SendComposedMessage::class)($ticket, $this->user(), $this->draft, $this->attachments, $this->quotedMessage($ticket->id));
 
-        $text = $separateText ? Signature::apply($this->draft, $this->user(), $ticket->sector) : '';
-
-        // O limite vale para o texto que sai, já com a assinatura.
-        if (mb_strlen($text) > self::MESSAGE_LIMIT) {
-            $this->addError('draft', 'Com a assinatura, a mensagem passa de '.self::MESSAGE_LIMIT.' caracteres.');
+        if ($result['error'] !== null) {
+            $this->addError('draft', $result['error']);
 
             return;
         }
-
-        // Freio contra conta comprometida ou laço no navegador: cada mensagem enviada conta, arquivo inclusive.
-        if (! $this->reserveSends(count($this->attachments) + ($separateText ? 1 : 0))) {
-            $this->addError('draft', 'Você está enviando mensagens rápido demais. Aguarde alguns segundos.');
-
-            return;
-        }
-
-        // Só a primeira mensagem do envio cita: o texto separado ou, sem ele, o primeiro arquivo.
-        $quoted = $this->quotedMessage($ticket->id);
-
-        if ($separateText) {
-            SendTicketMessageJob::dispatch(app(OutgoingMessages::class)->create($ticket, $this->user(), $text, quoted: $quoted)->id);
-            $quoted = null;
-        }
-
-        $failures = $this->sendAttachments($ticket, $captioned, $quoted);
 
         $this->reset('draft', 'attachments');
         $this->cancelReply();
 
-        foreach ($failures as $failure) {
+        foreach ($result['failures'] as $failure) {
             $this->addError('attachments', $failure);
         }
 
@@ -250,7 +196,7 @@ trait ComposesMessages
     {
         // O ticket vem do gravador (o da conversa em que ele nasceu), não da seleção atual: ao trocar de conversa, o aviso de
         // "parou" ainda precisa chegar ao cliente certo.
-        $ticket = Ticket::query()->visibleTo($this->user())->findOrFail($ticketId);
+        $ticket = $this->lookup()->visibleOrFail($this->user(), $ticketId);
 
         if (! $on && ! $this->user()->can('reply', $ticket)) {
             return;
@@ -258,7 +204,7 @@ trait ComposesMessages
 
         $this->authorize('reply', $ticket);
 
-        if ($on && ! RateLimiter::attempt('presence:'.$this->user()->id, self::PRESENCE_PER_MINUTE, fn () => true, 60)) {
+        if ($on && ! app(AgentRateLimits::class)->allowPresence($this->user())) {
             return;
         }
 
@@ -319,41 +265,9 @@ trait ComposesMessages
     {
         // Sem arquivo o texto é obrigatório; com arquivo ele é só a legenda.
         $this->validate(
-            ['draft' => [$this->attachments === [] ? 'required' : 'nullable', 'string', 'max:'.self::MESSAGE_LIMIT]],
-            ['draft.required' => 'Escreva uma mensagem.', 'draft.max' => 'A mensagem passa de '.self::MESSAGE_LIMIT.' caracteres.'],
+            ['draft' => [$this->attachments === [] ? 'required' : 'nullable', 'string', 'max:'.SendComposedMessage::MESSAGE_LIMIT]],
+            ['draft.required' => 'Escreva uma mensagem.', 'draft.max' => 'A mensagem passa de '.SendComposedMessage::MESSAGE_LIMIT.' caracteres.'],
         );
-    }
-
-    /** O texto vira a legenda do primeiro arquivo? Não vira se o arquivo é áudio ou se o texto passa do limite de legenda. */
-    private function captionsFirstFile(): bool
-    {
-        if ($this->attachments === [] || $this->draft === '' || mb_strlen($this->draft) > self::CAPTION_LIMIT) {
-            return false;
-        }
-
-        $info = AttachmentRules::inspect($this->attachments[0]);
-
-        return is_array($info) && $info['kind'] !== 'audio';
-    }
-
-    /**
-     * @return list<string> mensagens de erro dos arquivos que o servidor recusou na hora de enviar
-     */
-    private function sendAttachments(Ticket $ticket, bool $captioned, ?Message $quoted = null): array
-    {
-        $failures = [];
-
-        foreach ($this->attachments as $position => $file) {
-            try {
-                app(SendTicketMedia::class)($ticket, $this->user(), $file, $captioned && $position === 0 ? $this->draft : '', false, $position === 0 ? $quoted : null);
-            } catch (InvalidArgumentException $e) {
-                $failures[] = $e->getMessage();
-            }
-
-            $file->delete();
-        }
-
-        return $failures;
     }
 
     private function discardAttachments(): void
@@ -367,17 +281,6 @@ trait ComposesMessages
 
     private function reserveSends(int $count): bool
     {
-        $key = 'send-message:'.$this->user()->id;
-        $max = config()->integer('security.send_message_per_minute');
-
-        if (RateLimiter::remaining($key, $max) < $count) {
-            return false;
-        }
-
-        for ($i = 0; $i < $count; $i++) {
-            RateLimiter::hit($key, 60);
-        }
-
-        return true;
+        return app(AgentRateLimits::class)->reserveSends($this->user(), $count);
     }
 }

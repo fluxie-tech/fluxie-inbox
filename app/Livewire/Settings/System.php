@@ -2,18 +2,12 @@
 
 namespace App\Livewire\Settings;
 
-use App\Enums\AuditAction;
-use App\Enums\UpdateStatus;
-use App\Jobs\ApplyUpdateJob;
-use App\Models\SystemUpdate;
-use App\Services\Audit\Auditor;
-use App\Services\Backup\ManualBackupState;
-use App\Services\Backup\Restore\RestoreProgress;
+use App\Actions\Update\RequestUpdate;
 use App\Services\Reset\ResetSystem;
-use App\Services\Update\InstalledVersion;
 use App\Services\Update\Preflight;
 use App\Services\Update\ReleaseFeed;
-use App\Services\Update\Version;
+use App\Services\Update\UpdateGate;
+use App\Services\Update\UpdateOverview;
 use App\Settings\CompanySettings;
 use App\Settings\UpdateSettings;
 use Illuminate\Contracts\View\View;
@@ -27,12 +21,6 @@ use Livewire\Component;
 #[Title('Sistema')]
 class System extends Component
 {
-    /** O que o admin digita para confirmar, como a restauração do banco. */
-    public const CONFIRM_WORD = 'ATUALIZAR';
-
-    /** Minutos abertos sem fechar: depois disso a tela deixa de prometer e manda para a recuperação. */
-    private const STALE_MINUTES = 30;
-
     public string $panelUrl = '';
 
     /** Só existe entre a digitação e o salvar: o valor guardado nunca volta para a tela (nem no snapshot). */
@@ -111,11 +99,11 @@ class System extends Component
         $feed->refresh();
     }
 
-    public function testConnection(Preflight $preflight): void
+    public function testConnection(Preflight $preflight, UpdateGate $gate): void
     {
         $this->authorize('admin');
 
-        if (! $this->canUpdate()) {
+        if (! $gate->canUpdate()) {
             return;
         }
 
@@ -124,11 +112,11 @@ class System extends Component
     }
 
     /** Abre a confirmação; o aviso de compose editado faz rede, por isso só aqui e não no render. */
-    public function askUpdate(Preflight $preflight): void
+    public function askUpdate(Preflight $preflight, UpdateGate $gate): void
     {
         $this->authorize('admin');
         $this->reset('confirm', 'problem');
-        $this->problem = $this->blocker();
+        $this->problem = $gate->blocker();
 
         if ($this->problem !== null) {
             return;
@@ -144,33 +132,14 @@ class System extends Component
         $this->reset('confirming', 'confirm', 'problem', 'composeEdited');
     }
 
-    public function update(): void
+    public function update(RequestUpdate $request): void
     {
         $this->authorize('admin');
-        $target = $this->target();
+        $this->problem = $request(Auth::user(), $this->confirm);
 
-        $this->problem = $this->blocker() ?? match (true) {
-            $this->confirm !== self::CONFIRM_WORD => 'Digite '.self::CONFIRM_WORD.' para confirmar.',
-            app(RestoreProgress::class)->isRunning() => 'Há uma restauração em andamento; espere ela terminar para atualizar.',
-            app(ManualBackupState::class)->isRunning() => 'Há um backup em andamento; espere ele terminar para atualizar.',
-            default => null,
-        };
-
-        if ($this->problem !== null) {
-            return;
+        if ($this->problem === null) {
+            $this->cancelUpdate();
         }
-
-        $update = SystemUpdate::start(Auth::user(), app(InstalledVersion::class)->current(), (string) $target);
-
-        if ($update === null) {
-            $this->problem = 'Já há uma atualização em andamento.';
-
-            return;
-        }
-
-        Auditor::record(AuditAction::UpdateRequested, Auth::user(), (string) $target);
-        ApplyUpdateJob::dispatch($update->id);
-        $this->cancelUpdate();
     }
 
     /** Abre a confirmação do zerar; o bloqueio faz consultas (WAHA), por isso só aqui e não no render. */
@@ -261,87 +230,12 @@ class System extends Component
         return trim(CompanySettings::name()) ?: 'ZERAR';
     }
 
-    /** Por que esta instalação não pode atualizar agora; a tela esconde o botão, mas a ação chamada direto também recusa. */
-    private function blocker(): ?string
+    public function render(UpdateOverview $overview): View
     {
-        return match (true) {
-            $this->resourceUuid() === null => 'Esta instalação não é um Service do Coolify; atualize pelo painel.',
-            ! $this->canUpdate() || $this->target() === null => 'Não há versão nova para instalar.',
-            UpdateSettings::token() === null => 'Salve o token da API do Coolify antes de atualizar.',
-            default => null,
-        };
-    }
-
-    /** Só uma Release instalada, num Service do Coolify, tem o que atualizar; o `sha-…` do beta faria o pré-voo gravar lixo no Coolify. */
-    private function canUpdate(): bool
-    {
-        return app(InstalledVersion::class)->release() !== null && $this->resourceUuid() !== null;
-    }
-
-    private function resourceUuid(): ?string
-    {
-        $uuid = config('fluxie.resource_uuid');
-
-        return is_string($uuid) && $uuid !== '' ? $uuid : null;
-    }
-
-    /** A versão disponível, se for maior que a instalada. */
-    private function target(): ?Version
-    {
-        $installed = app(InstalledVersion::class)->release();
-        $latest = UpdateSettings::latest();
-        $version = $latest === null ? null : Version::parse($latest['tag']);
-
-        return $installed !== null && $version !== null && $version->greaterThan($installed) ? $version : null;
-    }
-
-    public function render(): View
-    {
-        $current = app(InstalledVersion::class)->current();
-        $timezone = config()->string('app.display_timezone');
-        $open = SystemUpdate::open();
-        $last = $open ?? SystemUpdate::query()->latest('id')->first();
-        $lastCheck = UpdateSettings::lastCheck();
-        $saved = UpdateSettings::tokenSavedAt();
-        $steps = [UpdateStatus::Conferindo, UpdateStatus::Backup, UpdateStatus::Aplicando, UpdateStatus::Reiniciando];
-
-        return view('livewire.settings.system', [
-            'installed' => app(InstalledVersion::class)->release() === null ? null : $current,
-            'sha' => substr((string) preg_replace('/^sha-/', '', $current), 0, 7),
-            'hasService' => $this->resourceUuid() !== null,
-            'canUpdate' => $this->canUpdate(),
-            'target' => $this->target(),
-            'latest' => UpdateSettings::latest(),
-            'checkEnabled' => UpdateSettings::checkEnabled(),
-            'lastCheck' => $lastCheck === null ? null : ['at' => $lastCheck['at']->timezone($timezone)->format('d/m/Y H:i'), 'ok' => $lastCheck['ok'], 'error' => $lastCheck['error']],
-            'tokenSaved' => UpdateSettings::token() !== null,
-            'tokenSavedAt' => $saved?->timezone($timezone)->format('d/m'),
-            'confirmWord' => self::CONFIRM_WORD,
+        return view('livewire.settings.system', $overview->forView(config()->string('app.display_timezone')) + [
             'allowReset' => config('fluxie.allow_reset') === true,
             'resetWord' => $this->resetWord(),
             'resetNameOk' => $this->nameMatches(),
-            'last' => $last,
-            'open' => $open !== null,
-            'stale' => $open !== null && $open->started_at !== null && $open->started_at->lt(now()->subMinutes(self::STALE_MINUTES)),
-            'steps' => array_map(fn (UpdateStatus $step): array => [
-                'label' => $step->label(),
-                'state' => $last === null ? 'pending' : $this->stepState($step, $steps, $last->status),
-            ], $steps),
         ]);
-    }
-
-    /**
-     * @param  list<UpdateStatus>  $steps
-     */
-    private function stepState(UpdateStatus $step, array $steps, UpdateStatus $status): string
-    {
-        $at = array_search($status, $steps, true);
-
-        return match (true) {
-            $at === false => 'pending', // fechada: a tela não mostra os passos, só o resultado escrito
-            array_search($step, $steps, true) < $at => 'done',
-            $step === $status => 'running',
-            default => 'pending',
-        };
     }
 }
