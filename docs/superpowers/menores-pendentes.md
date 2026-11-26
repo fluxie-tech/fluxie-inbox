@@ -56,6 +56,12 @@ Branch `feat/encerramento-atendimento`.
 - `resources/views/livewire/settings/closing.blade.php:35-39`: depois de uma recusa (desativar o último motivo ativo), os interruptores são recriados (`wire:key` com `$refusals`) e o foco do teclado cai no `body`. Devolver o foco ao interruptor depois do morph.
 - `resources/views/livewire/settings/sectors.blade.php:9-11`: provável erro duplicado no "Novo setor" (`@error('newName')` manual ao lado do `flux:input`, que já mostra o erro), o mesmo defeito corrigido na tela Encerramento. Conferir no navegador.
 
+## Menores adiados do encerramento, parte 3 (26/11/2026)
+
+Branch `feat/encerramento-automatico`.
+
+- Adoção do eco `fromMe` (`app/Services/Inbox/`) e `app/Services/AutoClose/AutoCloseMessages.php`: o eco de um aviso ou de uma despedida que chega fora da janela de 600 s não é adotado pela linha que criamos. Vira mensagem `fora_do_painel`, que conta como nossa e faz o aviso se repetir a cada X. No caso da despedida, com o chamado já encerrado, o eco abre um chamado novo só com a nossa despedida. Raro (o eco costuma chegar em segundos).
+
 ## Pendências maiores já combinadas (não são menores de revisão)
 
 - Modernizar o `phpmd.xml` com o PHPMD mais recente.

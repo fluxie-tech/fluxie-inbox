@@ -19,8 +19,10 @@ return new class extends Migration
             $table->timestamp('auto_close_warned_at')->nullable();
         });
 
-        // A resposta fora do horário que já existe: a primeira mensagem `bot` do ticket gravada a partir do evento. O evento
-        // nasce na mesma transação da mensagem e só ela usa a origem `bot` hoje, então casar por ordem é seguro.
+        // A resposta fora do horário que já existe: a primeira mensagem `bot` do ticket gravada a partir do evento. A Automação
+        // também usa a origem `bot`, então a origem sozinha não basta. O que identifica é o evento `after_hours_reply`: único por
+        // ticket (`AfterHoursReply::eligible`), com a mensagem criada logo depois dele, na mesma transação. Só canal sem fluxo
+        // de Automação recebe essa resposta, então a primeira `bot` depois do evento é a dele.
         DB::statement(<<<'SQL'
             UPDATE messages SET auto_reply = true WHERE id IN (
                 SELECT MIN(m.id) FROM messages m
