@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\TicketEvent;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -32,7 +31,7 @@ return new class extends Migration
         });
 
         $ids = [];
-        $position = 0;
+        $position = 1;
         foreach (self::REASONS as $slug => $name) {
             $ids[$slug] = DB::table('close_reasons')->insertGetId([
                 'name' => $name, 'position' => $position++, 'created_at' => now(), 'updated_at' => now(),
@@ -40,13 +39,14 @@ return new class extends Migration
             DB::table('tickets')->where('close_outcome', $slug)->update(['close_reason_id' => $ids[$slug]]);
         }
 
-        // `payload` é json (não jsonb): reescreve em PHP, mantendo `outcome`.
-        TicketEvent::query()->where('type', 'closed')->chunkById(200, function ($events) use ($ids) {
+        // `payload` é json (não jsonb): reescreve em PHP, mantendo `outcome`. Sem model nem updated_at (a tabela não os tem).
+        DB::table('ticket_events')->where('type', 'closed')->chunkById(200, function ($events) use ($ids) {
             foreach ($events as $event) {
-                $payload = $event->payload ?? [];
-                $outcome = $payload['outcome'] ?? null;
+                $payload = is_string($event->payload) ? json_decode($event->payload, true) : null;
+                $outcome = is_array($payload) ? ($payload['outcome'] ?? null) : null;
                 if (is_string($outcome) && isset($ids[$outcome])) {
-                    $event->update(['payload' => $payload + ['close_reason_id' => $ids[$outcome]]]);
+                    DB::table('ticket_events')->where('id', $event->id)
+                        ->update(['payload' => json_encode($payload + ['close_reason_id' => $ids[$outcome]])]);
                 }
             }
         });

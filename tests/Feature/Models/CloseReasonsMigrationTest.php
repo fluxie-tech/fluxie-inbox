@@ -22,6 +22,7 @@ class CloseReasonsMigrationTest extends TestCase
     public function test_a_migracao_cria_os_tres_motivos_na_ordem(): void
     {
         $this->assertSame(['Resolvido', 'Sem resposta', 'Cliente pediu'], CloseReason::query()->ordered()->pluck('name')->all());
+        $this->assertSame([1, 2, 3], CloseReason::query()->ordered()->pluck('position')->all());
         $this->assertSame(0, CloseReason::query()->where('requires_summary', true)->count());
         $this->assertSame(3, CloseReason::query()->active()->count());
     }
