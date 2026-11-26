@@ -6,9 +6,9 @@ use App\Actions\Inbox\CloseTicket;
 use App\Actions\Inbox\ReassignTicket;
 use App\Actions\Inbox\TransferTicket;
 use App\Enums\ClosedReason;
-use App\Enums\CloseOutcome;
 use App\Enums\SectorStatus;
 use App\Enums\TicketStatus;
+use App\Models\CloseReason;
 use App\Models\Sector;
 use App\Models\Ticket;
 use App\Models\User;
@@ -33,8 +33,8 @@ final class TicketPanel
     ];
 
     public const CLOSE_MESSAGES = [
-        'closeOutcome.required' => 'Escolha o motivo do encerramento.',
-        'closeOutcome.enum' => 'Escolha o motivo do encerramento.',
+        'closeReasonId.required' => 'Escolha o motivo do encerramento.',
+        'closeReasonId.exists' => 'Escolha o motivo do encerramento.',
         'closeSummary.required' => 'Escreva um resumo do atendimento.',
         'closeSummary.min' => 'O resumo precisa de ao menos 3 caracteres.',
         'closeSummary.max' => 'O resumo passa de 500 caracteres.',
@@ -56,12 +56,18 @@ final class TicketPanel
     }
 
     /** @return array<string, list<mixed>> */
-    public static function closeRules(): array
+    public static function closeRules(?int $closeReasonId): array
     {
         return [
-            'closeOutcome' => ['required', Rule::enum(CloseOutcome::class)],
-            'closeSummary' => ['required', 'string', 'min:3', 'max:500'],
+            'closeReasonId' => ['required', 'integer', Rule::exists('close_reasons', 'id')->where('active', true)],
+            'closeSummary' => [self::requiresSummary($closeReasonId) ? 'required' : 'nullable', 'string', 'min:3', 'max:500'],
         ];
+    }
+
+    /** O motivo ativo pede resumo? Motivo desativado ou desconhecido não pede (a regra do `closeReasonId` o recusa). */
+    public static function requiresSummary(?int $closeReasonId): bool
+    {
+        return $closeReasonId !== null && CloseReason::query()->active()->whereKey($closeReasonId)->where('requires_summary', true)->exists();
     }
 
     public function transfer(Ticket $ticket, User $by, int $sectorId, string $note): bool
@@ -74,9 +80,27 @@ final class TicketPanel
         return (new ReassignTicket)($ticket, $by, User::findOrFail($userId));
     }
 
-    public function close(Ticket $ticket, User $by, string $outcome, string $summary): bool
+    public function close(Ticket $ticket, User $by, int $closeReasonId, string $summary): bool
     {
-        return (new CloseTicket)($ticket, $by, ClosedReason::MANUAL, CloseOutcome::from($outcome), $summary);
+        return (new CloseTicket)($ticket, $by, ClosedReason::MANUAL, CloseReason::findOrFail($closeReasonId), $summary === '' ? null : $summary);
+    }
+
+    /** @return Collection<int, CloseReason> */
+    public function closeReasons(): Collection
+    {
+        return CloseReason::query()->active()->ordered()->get();
+    }
+
+    /**
+     * O que a view do painel Encerrar precisa: a lista de motivos (só com o painel aberto) e se o escolhido pede resumo.
+     *
+     * @return array{closeReasons: Collection<int, CloseReason>, summaryRequired: bool}
+     */
+    public function closeForm(?string $panel, int $closeReasonId): array
+    {
+        return $panel === 'close'
+            ? ['closeReasons' => $this->closeReasons(), 'summaryRequired' => self::requiresSummary($closeReasonId)]
+            : ['closeReasons' => new Collection, 'summaryRequired' => false];
     }
 
     /** Outra pessoa encerrou enquanto o painel estava aberto. */
