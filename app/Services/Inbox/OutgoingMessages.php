@@ -18,9 +18,9 @@ use App\Models\User;
 class OutgoingMessages
 {
     /** @param  Message|null  $quoted  a mensagem que esta responde (o WhatsApp a mostra como citação) */
-    public function create(Ticket $ticket, ?User $author, string $text, MessageOrigin $origin = MessageOrigin::PAINEL, ?Message $quoted = null): Message
+    public function create(Ticket $ticket, ?User $author, string $text, MessageOrigin $origin = MessageOrigin::PAINEL, ?Message $quoted = null, bool $autoReply = false): Message
     {
-        return $this->record($ticket, $author, 'text', $text, $origin, self::quoteColumns($quoted));
+        return $this->record($ticket, $author, 'text', $text, $origin, self::quoteColumns($quoted), $autoReply);
     }
 
     /**
@@ -38,7 +38,7 @@ class OutgoingMessages
      *
      * @param  array<string, mixed>  $extra  colunas de mídia (`media_mime`, `media_name`, `media_size`, `local_path`)
      */
-    public function record(Ticket $ticket, ?User $author, string $type, string $body, MessageOrigin $origin = MessageOrigin::PAINEL, array $extra = []): Message
+    public function record(Ticket $ticket, ?User $author, string $type, string $body, MessageOrigin $origin = MessageOrigin::PAINEL, array $extra = [], bool $autoReply = false): Message
     {
         $message = Message::create([
             'ticket_id' => $ticket->id,
@@ -50,6 +50,7 @@ class OutgoingMessages
             'origin' => $origin,
             'author_user_id' => $author?->id,
             'sent_at' => now(),
+            'auto_reply' => $autoReply,
             ...$extra,
         ]);
 

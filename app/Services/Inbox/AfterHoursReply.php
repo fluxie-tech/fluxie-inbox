@@ -49,7 +49,7 @@ class AfterHoursReply
 
             TicketEvent::create(['ticket_id' => $ticket->id, 'type' => 'after_hours_reply']);
 
-            return $this->messages->create($ticket, null, $this->text($incoming), MessageOrigin::BOT);
+            return $this->messages->create($ticket, null, $this->text($incoming), MessageOrigin::BOT, autoReply: true);
         });
 
         if ($reply !== null) {
