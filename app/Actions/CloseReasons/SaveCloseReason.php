@@ -4,6 +4,7 @@ namespace App\Actions\CloseReasons;
 
 use App\Models\CloseReason;
 use App\Rules\NoControlChars;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -14,6 +15,8 @@ class SaveCloseReason
     public const NAME_LIMIT = 60;
 
     private const DUPLICATE = 'Já existe um motivo com esse nome.';
+
+    private const IN_USE = 'Não dá para apagar: o motivo já foi usado em chamados. Desative-o para tirá-lo do Encerrar.';
 
     private const LAST_ACTIVE = 'Mantenha pelo menos um motivo ativo.';
 
@@ -51,23 +54,31 @@ class SaveCloseReason
     /** @throws CloseReasonRejected */
     public function delete(CloseReason $reason): void
     {
-        DB::transaction(function () use ($reason): void {
-            $this->assertAnotherActive($reason);
+        try {
+            DB::transaction(function () use ($reason): void {
+                $this->assertAnotherActive($reason);
 
-            if ($reason->isUsed()) {
-                throw new CloseReasonRejected('Não dá para apagar: o motivo já foi usado em chamados. Desative-o para tirá-lo do Encerrar.');
-            }
+                if ($reason->isUsed()) {
+                    throw new CloseReasonRejected(self::IN_USE);
+                }
 
-            $reason->delete();
-        });
+                $reason->delete();
+            });
+        } catch (QueryException $e) {
+            // Um chamado foi encerrado com este motivo entre a conferência e o delete: a chave estrangeira (23503) barrou.
+            throw $e->getCode() === '23503' ? new CloseReasonRejected(self::IN_USE) : $e;
+        }
     }
 
-    /** Trava os ativos (FOR UPDATE): dois admins desativando motivos diferentes ao mesmo tempo não zeram a lista. */
+    /**
+     * Trava todos os ativos, o próprio inclusive e sempre na mesma ordem (FOR UPDATE): dois admins desativando os dois últimos
+     * ao mesmo tempo não se enroscam; o segundo espera e vê que sobrou um só.
+     */
     private function assertAnotherActive(CloseReason $reason): void
     {
-        $others = CloseReason::query()->active()->whereKeyNot($reason->id)->lockForUpdate()->get();
+        $active = CloseReason::query()->active()->orderBy('id')->lockForUpdate()->get();
 
-        if ($reason->active && $others->isEmpty()) {
+        if ($active->count() === 1 && $active->contains('id', $reason->id)) {
             throw new CloseReasonRejected(self::LAST_ACTIVE);
         }
     }

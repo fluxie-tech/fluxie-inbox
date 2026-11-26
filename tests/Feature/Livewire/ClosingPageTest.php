@@ -2,11 +2,13 @@
 
 namespace Tests\Feature\Livewire;
 
+use App\Actions\CloseReasons\SaveCloseReason;
 use App\Enums\UserRole;
 use App\Livewire\Settings\Closing;
 use App\Models\CloseReason;
 use App\Models\Ticket;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -32,6 +34,32 @@ class ClosingPageTest extends TestCase
         $this->actingAs($supervisor)->get('/configuracoes/encerramento')->assertForbidden();
         Livewire::actingAs($supervisor)->test(Closing::class)->assertForbidden();
         $this->assertSame(3, CloseReason::query()->count());
+    }
+
+    public function test_supervisor_nao_muda_nada_nem_forjando_a_chamada(): void
+    {
+        $id = $this->reason('Resolvido')->id;
+        $this->actingAs(User::factory()->create(['role' => UserRole::SUPERVISOR]));
+        $save = new SaveCloseReason;
+
+        foreach ([
+            fn (Closing $c) => $c->create('Novo', $save),
+            fn (Closing $c) => $c->rename($id, 'Outro', $save),
+            fn (Closing $c) => $c->toggleSummary($id),
+            fn (Closing $c) => $c->setActive($id, false, $save),
+            fn (Closing $c) => $c->move($id, 'down'),
+            fn (Closing $c) => $c->remove($id, $save),
+        ] as $call) {
+            try {
+                $call(new Closing);
+                $this->fail('A chamada forjada passou.');
+            } catch (AuthorizationException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+
+        $reason = $this->reason('Resolvido');
+        $this->assertSame([3, 1, false, true], [CloseReason::query()->count(), $reason->position, $reason->requires_summary, $reason->active]);
     }
 
     public function test_admin_ve_os_motivos(): void
