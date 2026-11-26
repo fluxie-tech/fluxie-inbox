@@ -41,9 +41,7 @@ class SendTicketMessage
         $contact = $ticket->contact()->firstOrFail();
         $channel = $ticket->channel()->firstOrFail();
 
-        // Aviso do encerramento automático criado antes de o chamado ser encerrado e só agora na vez (canal parado na hora, fila
-        // de até 24 h): não faz sentido sair. A despedida nasce depois do encerramento, de propósito, e segue.
-        if ($message->auto_reply && $ticket->status === TicketStatus::ENCERRADO && $ticket->closed_at !== null && $message->created_at < $ticket->closed_at) {
+        if ($this->closedBeforeSending($message, $ticket)) {
             $this->status->cancel($message);
 
             return;
@@ -128,6 +126,15 @@ class SendTicketMessage
         $disk = Message::mediaDisk();
 
         return $disk->exists($message->media_path) ? $disk->get($message->media_path) : null;
+    }
+
+    /**
+     * Aviso do encerramento automático criado antes de o chamado ser encerrado e só agora na vez (canal parado na hora, fila de
+     * até 24 h): não faz sentido sair. A despedida nasce depois do encerramento, de propósito, e segue.
+     */
+    private function closedBeforeSending(Message $message, Ticket $ticket): bool
+    {
+        return $message->auto_reply && $ticket->status === TicketStatus::ENCERRADO && $ticket->closed_at !== null && $message->created_at < $ticket->closed_at;
     }
 
     private function waitingAhead(Message $message): bool
