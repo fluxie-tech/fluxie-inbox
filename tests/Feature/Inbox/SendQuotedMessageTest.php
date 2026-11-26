@@ -10,6 +10,7 @@ use App\Models\Contact;
 use App\Models\Message;
 use App\Models\Ticket;
 use App\Models\User;
+use App\Services\Inbox\OutgoingMessages;
 use App\Services\Inbox\SendTicketMedia;
 use App\Services\Inbox\SendTicketMessage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -61,10 +62,8 @@ class SendQuotedMessageTest extends TestCase
 
     public function test_texto_citado_envia_reply_to_com_o_id_completo_e_grava_o_trecho(): void
     {
-        $service = app(SendTicketMessage::class);
-
-        $message = $service->create($this->ticket, $this->author, 'R$ 120 a unidade', MessageOrigin::PAINEL, $this->original);
-        $service->deliver($message);
+        $message = app(OutgoingMessages::class)->create($this->ticket, $this->author, 'R$ 120 a unidade', MessageOrigin::PAINEL, $this->original);
+        app(SendTicketMessage::class)->deliver($message);
 
         $this->assertSame('false_'.self::PEER.'_ORIG1', $this->sentTo('/api/sendText')['reply_to']);
         $message->refresh();
@@ -77,9 +76,7 @@ class SendQuotedMessageTest extends TestCase
         $mine = Message::factory()->for($this->ticket)->create([
             'direction' => 'out', 'origin' => MessageOrigin::PAINEL, 'author_user_id' => $this->author->id, 'wa_message_id' => 'MINE1', 'body' => 'Olá',
         ]);
-        $service = app(SendTicketMessage::class);
-
-        $service->deliver($service->create($this->ticket, $this->author, 'Tudo bem?', MessageOrigin::PAINEL, $mine));
+        app(SendTicketMessage::class)->deliver(app(OutgoingMessages::class)->create($this->ticket, $this->author, 'Tudo bem?', MessageOrigin::PAINEL, $mine));
 
         $this->assertSame('true_'.self::PEER.'_MINE1', $this->sentTo('/api/sendText')['reply_to']);
     }
@@ -97,9 +94,7 @@ class SendQuotedMessageTest extends TestCase
 
     public function test_sem_citacao_o_envio_continua_igual(): void
     {
-        $service = app(SendTicketMessage::class);
-
-        $service->deliver($service->create($this->ticket, $this->author, 'Oi'));
+        app(SendTicketMessage::class)->deliver(app(OutgoingMessages::class)->create($this->ticket, $this->author, 'Oi'));
 
         $this->assertArrayNotHasKey('reply_to', $this->sentTo('/api/sendText')->data());
         $this->assertNull(Message::query()->where('body', 'Oi')->sole()->quoted_wa_message_id);

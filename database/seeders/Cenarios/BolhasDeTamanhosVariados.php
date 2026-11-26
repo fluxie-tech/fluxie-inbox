@@ -7,7 +7,7 @@ use App\Enums\MessageOrigin;
 use App\Enums\TicketStatus;
 use App\Models\Message;
 use App\Models\Ticket;
-use App\Services\Inbox\SendTicketMessage;
+use App\Services\Inbox\OutgoingMessages;
 use Database\Seeders\SoRodaEmAmbienteDeTeste;
 use Illuminate\Database\Seeder;
 
@@ -25,6 +25,6 @@ class BolhasDeTamanhosVariados extends Seeder
         Message::factory()->create(['ticket_id' => $ticket->id, 'body' => 'Oi']);
         Message::factory()->create([...$saida, 'body' => 'Ok']);
         $longa = Message::factory()->create(['ticket_id' => $ticket->id, 'body' => str_repeat('Texto longo para testar a quebra de linha da bolha. ', 11)]);
-        Message::factory()->create([...$saida, 'body' => 'Resposta citando a mensagem longa.', ...SendTicketMessage::quoteColumns($longa)]);
+        Message::factory()->create([...$saida, 'body' => 'Resposta citando a mensagem longa.', ...OutgoingMessages::quoteColumns($longa)]);
     }
 }

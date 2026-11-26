@@ -30,7 +30,7 @@ class AfterHoursReply
 
     public function __construct(
         private readonly BusinessHours $hours,
-        private readonly SendTicketMessage $send,
+        private readonly OutgoingMessages $messages,
     ) {}
 
     /** `$freshAt` é o que conta como "recente" (a hora em que a mensagem chegou, se ao vivo); sem ele, a hora de envio. */
@@ -49,7 +49,7 @@ class AfterHoursReply
 
             TicketEvent::create(['ticket_id' => $ticket->id, 'type' => 'after_hours_reply']);
 
-            return $this->send->create($ticket, null, $this->text($incoming), MessageOrigin::BOT);
+            return $this->messages->create($ticket, null, $this->text($incoming), MessageOrigin::BOT);
         });
 
         if ($reply !== null) {

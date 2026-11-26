@@ -17,6 +17,7 @@ use App\Models\Ticket;
 use App\Models\User;
 use App\Models\WahaEvent;
 use App\Services\Inbox\IngestMessage;
+use App\Services\Inbox\OutgoingMessages;
 use App\Services\Inbox\SendFailure;
 use App\Services\Inbox\SendTicketMessage;
 use Carbon\CarbonImmutable;
@@ -120,7 +121,7 @@ class WaitingSinceTest extends TestCase
     {
         Http::fake(['*' => Http::response(['id' => 'true_5516997524950@c.us_BOT'], 201)]);
         $ticket = $this->ticket(['waiting_since' => now()->subMinutes(5)]);
-        $reply = app(SendTicketMessage::class)->create($ticket, null, 'Estamos fechados', MessageOrigin::BOT);
+        $reply = app(OutgoingMessages::class)->create($ticket, null, 'Estamos fechados', MessageOrigin::BOT);
 
         app(SendTicketMessage::class)->deliver($reply);
 

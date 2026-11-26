@@ -4,21 +4,15 @@ namespace App\Services\Alerts;
 
 use App\Enums\ChannelStatus;
 use App\Events\ChannelStatusChanged;
-use App\Events\TicketQueued;
 use App\Jobs\ConfirmChannelDownJob;
 use App\Models\Channel;
-use App\Models\Ticket;
-use App\Models\User;
 use App\Notifications\ChannelDown;
 use App\Notifications\ChannelNumberChanged;
 use App\Notifications\ChannelUp;
-use App\Notifications\SlaBreached;
-use App\Notifications\SlaWarning;
-use App\Notifications\TicketAssigned;
 use Illuminate\Support\Facades\Notification;
 
-/** O único lugar que transforma um fato (canal caiu, SLA estourou...) em alertas, usando {@see AlertRecipients}. */
-final class AlertDispatcher
+/** O único lugar que transforma um fato do canal (caiu, voltou, mudou de número) em alertas, usando {@see AlertRecipients}. */
+final class ChannelAlerts
 {
     public function __construct(private readonly AlertRecipients $recipients) {}
 
@@ -81,27 +75,5 @@ final class AlertDispatcher
     public function numberChanged(Channel $channel): void
     {
         Notification::send($this->recipients->everyone(), new ChannelNumberChanged($channel));
-    }
-
-    public function sla(Ticket $ticket, bool $breached): void
-    {
-        Notification::send($this->recipients->sla($ticket), $breached ? new SlaBreached($ticket) : new SlaWarning($ticket));
-    }
-
-    /** `$actor` nulo é a automação atribuindo: a pessoa é sempre avisada. */
-    public function assigned(Ticket $ticket, User $to, ?User $actor): void
-    {
-        if ($actor === null || $to->id !== $actor->id) {
-            $to->notify(new TicketAssigned($ticket));
-        }
-    }
-
-    public function queued(Ticket $ticket, ?int $exceptUserId = null): void
-    {
-        $ids = $this->recipients->queue($ticket)->map(fn (User $user): int => $user->id)->reject(fn (int $id): bool => $id === $exceptUserId)->values()->all();
-
-        if ($ids !== []) {
-            TicketQueued::dispatch($ticket->id, $ids);
-        }
     }
 }

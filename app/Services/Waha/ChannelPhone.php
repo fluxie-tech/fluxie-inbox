@@ -3,7 +3,7 @@
 namespace App\Services\Waha;
 
 use App\Models\Channel;
-use App\Services\Alerts\AlertDispatcher;
+use App\Services\Alerts\ChannelAlerts;
 
 /**
  * O número do canal vem do WAHA (`me.id` na sessão e no webhook `session.status`), nunca de digitação. Um único ponto o
@@ -12,7 +12,7 @@ use App\Services\Alerts\AlertDispatcher;
  */
 class ChannelPhone
 {
-    public function __construct(private readonly AlertDispatcher $alerts) {}
+    public function __construct(private readonly ChannelAlerts $alerts) {}
 
     /** Só os dígitos do telefone, ou `null` se o id não for de telefone (vazio ou `@lid`). */
     public static function digits(?string $meId): ?string

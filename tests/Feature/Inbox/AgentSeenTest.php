@@ -15,7 +15,7 @@ use App\Models\Contact;
 use App\Models\Message;
 use App\Models\Ticket;
 use App\Models\User;
-use App\Services\Inbox\SendTicketMessage;
+use App\Services\Inbox\OutgoingMessages;
 use App\Support\TicketQueue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
@@ -140,7 +140,7 @@ class AgentSeenTest extends TestCase
     {
         $this->inbound();
 
-        app(SendTicketMessage::class)->create($this->ticket, $this->owner, 'Oi, já te atendo');
+        app(OutgoingMessages::class)->create($this->ticket, $this->owner, 'Oi, já te atendo');
 
         $this->assertNotNull($this->ticket->fresh()?->agent_seen_at);
         $this->assertSame(0, $this->unread());
@@ -150,8 +150,8 @@ class AgentSeenTest extends TestCase
     {
         $this->inbound();
 
-        app(SendTicketMessage::class)->create($this->ticket, null, 'Resposta automática', MessageOrigin::BOT);
-        app(SendTicketMessage::class)->create($this->ticket, User::factory()->create(['role' => UserRole::SUPERVISOR]), 'Posso ajudar?');
+        app(OutgoingMessages::class)->create($this->ticket, null, 'Resposta automática', MessageOrigin::BOT);
+        app(OutgoingMessages::class)->create($this->ticket, User::factory()->create(['role' => UserRole::SUPERVISOR]), 'Posso ajudar?');
 
         $this->assertNull($this->ticket->fresh()?->agent_seen_at);
     }

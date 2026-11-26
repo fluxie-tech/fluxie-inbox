@@ -14,8 +14,8 @@ use App\Models\Ticket;
 use App\Models\User;
 use App\Models\WahaEvent;
 use App\Services\Inbox\DrainOutbox;
+use App\Services\Inbox\OutgoingMessages;
 use App\Services\Inbox\SendFailure;
-use App\Services\Inbox\SendTicketMessage;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -53,7 +53,7 @@ class OutboxDrainTest extends TestCase
 
     private function queued(string $text): Message
     {
-        $message = app(SendTicketMessage::class)->create($this->ticket, $this->author, $text);
+        $message = app(OutgoingMessages::class)->create($this->ticket, $this->author, $text);
         $message->update(['delivery_status' => DeliveryStatus::QUEUED]);
 
         return $message;
@@ -208,7 +208,7 @@ class OutboxDrainTest extends TestCase
         $this->queued('espera');
         $offline = Channel::factory()->create(['waha_session' => 'off', 'status' => ChannelStatus::STOPPED]);
         $ticket = Ticket::factory()->for(Contact::factory()->create(['wa_id' => '5511900000000@c.us']))->for($offline)->create();
-        app(SendTicketMessage::class)->create($ticket, $this->author, 'parada')->update(['delivery_status' => DeliveryStatus::QUEUED]);
+        app(OutgoingMessages::class)->create($ticket, $this->author, 'parada')->update(['delivery_status' => DeliveryStatus::QUEUED]);
 
         $this->artisan('app:drain-outbox')->assertSuccessful();
 
@@ -218,9 +218,9 @@ class OutboxDrainTest extends TestCase
 
     public function test_o_comando_recolhe_linha_presa_em_enviando_sem_dono(): void
     {
-        $stuck = app(SendTicketMessage::class)->create($this->ticket, $this->author, 'presa');
+        $stuck = app(OutgoingMessages::class)->create($this->ticket, $this->author, 'presa');
         Message::query()->whereKey($stuck->id)->update(['updated_at' => now()->subMinutes(11)]);
-        $recent = app(SendTicketMessage::class)->create($this->ticket, $this->author, 'recente');
+        $recent = app(OutgoingMessages::class)->create($this->ticket, $this->author, 'recente');
 
         $this->artisan('app:drain-outbox')->assertSuccessful();
 

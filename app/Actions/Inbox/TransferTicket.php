@@ -8,7 +8,7 @@ use App\Models\Sector;
 use App\Models\Ticket;
 use App\Models\TicketEvent;
 use App\Models\User;
-use App\Services\Alerts\AlertDispatcher;
+use App\Services\Alerts\TicketAlerts;
 use Illuminate\Support\Facades\DB;
 
 class TransferTicket
@@ -65,7 +65,7 @@ class TransferTicket
                 TicketUpdated::dispatch($ticket);
 
                 if ($announce) {
-                    app(AlertDispatcher::class)->queued($ticket, $actor?->id);
+                    app(TicketAlerts::class)->queued($ticket, $actor?->id);
                 }
             }
 

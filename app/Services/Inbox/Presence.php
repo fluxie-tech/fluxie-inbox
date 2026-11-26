@@ -3,7 +3,6 @@
 namespace App\Services\Inbox;
 
 use App\Enums\MessageOrigin;
-use App\Jobs\GoOfflineJob;
 use App\Models\Channel;
 use App\Models\Contact;
 use App\Models\Message;
@@ -12,7 +11,6 @@ use App\Services\Waha\WahaClient;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
-use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -21,9 +19,6 @@ use Throwable;
  */
 class Presence
 {
-    /** Quanto tempo sem envios antes de voltar a "offline". */
-    private const OFFLINE_AFTER_SECONDS = 45;
-
     private const LAST_SEEN_IDS = 20;
 
     /** Teto do "digitando" do bot: a fila `outbound` tem um processo só, e um bot lento atrasaria a resposta humana. */
@@ -43,6 +38,8 @@ class Presence
 
     /** Um WAHA lento não pode segurar a fila por causa de um visto. */
     private const BOT_SEEN_TIMEOUT_SECONDS = 3;
+
+    public function __construct(private readonly OfflineSchedule $offline) {}
 
     /** `$typing` falso (áudio): o cliente já viu "gravando…", então "digitando…" antes da voz seria incoerente. */
     public function before(WahaClient $client, Ticket $ticket, Contact $contact, string $text, bool $typing = true, MessageOrigin $origin = MessageOrigin::PAINEL): void
@@ -190,10 +187,7 @@ class Presence
 
     public function scheduleOffline(Channel $channel, ?int $delaySeconds = null): void
     {
-        $token = Str::random(16);
-
-        Cache::put($this->key($channel->id), $token, now()->addMinutes(5));
-        GoOfflineJob::dispatch($channel->id, $token)->delay(now()->addSeconds($delaySeconds ?? self::OFFLINE_AFTER_SECONDS));
+        $this->offline->schedule($channel, $delaySeconds);
     }
 
     /**
@@ -206,12 +200,12 @@ class Presence
         $this->attempt('assinar presença', fn () => $client->check(
             $client->http()->post('/api/'.$client->sessionName().'/presence/'.$chatId.'/subscribe'),
         ));
-        $this->scheduleOffline($channel, max(self::OFFLINE_AFTER_SECONDS, config()->integer('presence.window_seconds')));
+        $this->scheduleOffline($channel, max(OfflineSchedule::OFFLINE_AFTER_SECONDS, config()->integer('presence.window_seconds')));
     }
 
     public function goOffline(Channel $channel, string $token): void
     {
-        if (Cache::get($this->key($channel->id)) !== $token) {
+        if (! $this->offline->isCurrent($channel, $token)) {
             return;
         }
 
@@ -274,10 +268,5 @@ class Presence
     private function seenKey(int $ticketId): string
     {
         return "presence-seen-upto:{$ticketId}";
-    }
-
-    private function key(int $channelId): string
-    {
-        return "presence-offline:{$channelId}";
     }
 }

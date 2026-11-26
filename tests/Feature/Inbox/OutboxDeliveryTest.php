@@ -12,6 +12,7 @@ use App\Models\Ticket;
 use App\Models\User;
 use App\Models\WahaEvent;
 use App\Services\Inbox\IngestMessage;
+use App\Services\Inbox\OutgoingMessages;
 use App\Services\Inbox\SendFailure;
 use App\Services\Inbox\SendTicketMessage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -50,7 +51,7 @@ class OutboxDeliveryTest extends TestCase
 
     private function create(string $text = 'oi'): Message
     {
-        return app(SendTicketMessage::class)->create($this->ticket, $this->author, $text);
+        return app(OutgoingMessages::class)->create($this->ticket, $this->author, $text);
     }
 
     private function deliver(Message $message): void

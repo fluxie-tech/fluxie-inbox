@@ -14,6 +14,7 @@ use App\Models\Contact;
 use App\Models\Message;
 use App\Models\Ticket;
 use App\Models\User;
+use App\Services\Inbox\OutgoingMessages;
 use App\Services\Inbox\Presence;
 use App\Services\Inbox\SendTicketMessage;
 use App\Services\Waha\WahaRequestException;
@@ -82,7 +83,7 @@ class PresenceSendTest extends TestCase
 
     private function botSays(string $text): Message
     {
-        $message = app(SendTicketMessage::class)->create($this->ticket, null, $text, MessageOrigin::BOT);
+        $message = app(OutgoingMessages::class)->create($this->ticket, null, $text, MessageOrigin::BOT);
         app(SendTicketMessage::class)->deliver($message);
 
         return $message;

@@ -8,9 +8,9 @@ use App\Models\Message;
 use App\Models\QuickReply;
 use App\Models\Ticket;
 use App\Services\Inbox\AttachmentRules;
+use App\Services\Inbox\OutgoingMessages;
 use App\Services\Inbox\Presence;
 use App\Services\Inbox\SendTicketMedia;
-use App\Services\Inbox\SendTicketMessage;
 use App\Services\Inbox\Signature;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\RateLimiter;
@@ -210,7 +210,7 @@ trait ComposesMessages
         $quoted = $this->quotedMessage($ticket->id);
 
         if ($separateText) {
-            SendTicketMessageJob::dispatch(app(SendTicketMessage::class)->create($ticket, $this->user(), $text, quoted: $quoted)->id);
+            SendTicketMessageJob::dispatch(app(OutgoingMessages::class)->create($ticket, $this->user(), $text, quoted: $quoted)->id);
             $quoted = null;
         }
 

@@ -6,7 +6,7 @@ use App\Enums\TicketStatus;
 use App\Events\TicketUpdated;
 use App\Models\Ticket;
 use App\Models\TicketEvent;
-use App\Services\Alerts\AlertDispatcher;
+use App\Services\Alerts\TicketAlerts;
 use App\Settings\CompanySettings;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -31,7 +31,7 @@ final class SlaClock
 
     private const WARN_RATIO = 0.75;
 
-    public function __construct(private readonly BusinessHours $hours, private readonly AlertDispatcher $alerts) {}
+    public function __construct(private readonly BusinessHours $hours, private readonly TicketAlerts $alerts) {}
 
     /**
      * @return array{adopted: int, scheduled: int, warned: int, breached: int}
