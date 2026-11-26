@@ -76,7 +76,7 @@ final class SimulatedEffects implements BotEffects
 
     public function enterQueue(?Sector $sector, ?User $assignTo): ?int
     {
-        $assigned = LiveEffects::assignable($assignTo, $sector);
+        $assigned = LiveQueue::assignable($assignTo, $sector);
 
         $this->state->outcome = SimulationState::IN_QUEUE;
         $this->state->add('efeito', 'entraria na fila de '.($sector !== null ? $sector->name : 'fila geral').($assigned !== null ? ", atribuído a {$assigned->name}" : ''));

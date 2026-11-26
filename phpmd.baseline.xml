@@ -12,8 +12,6 @@
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Settings/Users.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Livewire/Setup/FirstSteps.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Backup/Restore/RestoreDatabase.php"/>
-  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Bot/BotEngine.php"/>
-  <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Bot/Effects/LiveEffects.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Reset/ResetSystem.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Update/ApplyUpdate.php"/>
   <violation rule="PHPMD\Rule\Design\CouplingBetweenObjects" file="app/Services/Update/Preflight.php"/>

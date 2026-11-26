@@ -235,6 +235,24 @@ class EngineExtraNodesTest extends TestCase
         $this->assertSame(TicketStatus::AGUARDANDO, $this->ticket->fresh()?->status);
     }
 
+    public function test_midia_com_caminho_que_sobe_de_diretorio_nao_envia(): void
+    {
+        Storage::fake('local');
+        Storage::fake('media');
+        config(['media.disk' => 'media']);
+        // 'bot/../segredo.txt' o Flysystem normaliza para 'segredo.txt', que existe fora de `bot/`: só a trava do `..` impede o envio.
+        Storage::disk('local')->put('segredo.txt', 'segredo');
+        $version = $this->line([
+            ['m', 'midia', ['path' => 'bot/../segredo.txt']],
+            ['f', 'mensagem', ['texto' => 'Fim']],
+        ]);
+
+        app(BotEngine::class)->start($this->ticket, $version);
+
+        $this->assertSame(0, Message::query()->where('ticket_id', $this->ticket->id)->where('type', 'media')->count());
+        $this->assertSame(['Fim'], $this->botTexts());
+    }
+
     public function test_salvar_no_contato_grava_o_campo_e_deixa_o_contato_elegivel_ao_google(): void
     {
         $version = $this->line([
