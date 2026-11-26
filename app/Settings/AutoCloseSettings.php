@@ -80,10 +80,10 @@ final class AutoCloseSettings
         }
     }
 
-    /** Troca `{{nome}}` e `{{protocolo}}`; texto vazio vale o aviso padrão. */
-    public static function render(string $template, Ticket $ticket): string
+    /** Troca `{{nome}}` e `{{protocolo}}`; texto vazio vale o `$default` (o aviso padrão, se não vier outro). */
+    public static function render(string $template, Ticket $ticket, string $default = self::DEFAULT_WARN): string
     {
-        $template = trim($template) === '' ? self::DEFAULT_WARN : $template;
+        $template = trim($template) === '' ? $default : $template;
 
         return strtr($template, ['{{nome}}' => $ticket->contact?->label() ?? 'cliente', '{{protocolo}}' => (string) $ticket->protocol]);
     }

@@ -7,6 +7,7 @@ use App\Models\Ticket;
 use App\Settings\AutoCloseSettings;
 use Closure;
 use Illuminate\Contracts\View\View;
+use Illuminate\Validation\Rule;
 use Livewire\Component;
 
 /** O painel do encerramento automático: liga, tempos (em horas e minutos), aviso, despedida e horário de atendimento. */
@@ -14,17 +15,17 @@ class AutoClose extends Component
 {
     public bool $enabled = true;
 
-    public int $idleHours = 24;
+    public int|string|null $idleHours = 24;
 
-    public int $idleMinutes = 0;
+    public int|string|null $idleMinutes = 0;
 
     public bool $warnEnabled = false;
 
     public string $warnMessage = '';
 
-    public int $afterWarnHours = 1;
+    public int|string|null $afterWarnHours = 1;
 
-    public int $afterWarnMinutes = 0;
+    public int|string|null $afterWarnMinutes = 0;
 
     public bool $farewellEnabled = false;
 
@@ -52,28 +53,26 @@ class AutoClose extends Component
 
         $max = 'max:'.AutoCloseSettings::MAX_MESSAGE;
         $this->validate([
-            'idleHours' => ['integer', 'min:0'],
-            'idleMinutes' => ['integer', 'min:0', $this->range($this->idleHours * 60 + $this->idleMinutes, AutoCloseSettings::MAX_IDLE_MINUTES, 'O tempo vai de 15 minutos a 30 dias.')],
-            'afterWarnHours' => ['integer', 'min:0'],
-            'afterWarnMinutes' => ['integer', 'min:0', $this->range($this->afterWarnHours * 60 + $this->afterWarnMinutes, AutoCloseSettings::MAX_AFTER_WARN_MINUTES, 'A espera vai de 15 minutos a 7 dias.')],
-            'warnMessage' => ['required', 'string', $max],
-            'farewellMessage' => ['required', 'string', $max],
+            'idleMinutes' => ['required', $this->range($this->idleHours, $this->idleMinutes, AutoCloseSettings::MAX_IDLE_MINUTES, 'O tempo vai de 15 minutos a 30 dias.')],
+            'afterWarnMinutes' => ['required', $this->range($this->afterWarnHours, $this->afterWarnMinutes, AutoCloseSettings::MAX_AFTER_WARN_MINUTES, 'A espera vai de 15 minutos a 7 dias.')],
+            'warnMessage' => [Rule::requiredIf($this->warnEnabled), 'nullable', 'string', $max],
+            'farewellMessage' => [Rule::requiredIf($this->farewellEnabled), 'nullable', 'string', $max],
         ], [
+            'idleMinutes.required' => 'O tempo vai de 15 minutos a 30 dias.',
+            'afterWarnMinutes.required' => 'A espera vai de 15 minutos a 7 dias.',
             'required' => 'Escreva o texto.',
             'warnMessage.max' => 'O texto passa de 500 caracteres.',
             'farewellMessage.max' => 'O texto passa de 500 caracteres.',
-            'integer' => 'Use números inteiros.',
-            'min' => 'Use números inteiros.',
         ]);
 
         AutoCloseSettings::save([
             'enabled' => $this->enabled,
-            'idle_minutes' => $this->idleHours * 60 + $this->idleMinutes,
+            'idle_minutes' => self::total($this->idleHours, $this->idleMinutes),
             'warn_enabled' => $this->warnEnabled,
-            'warn_message' => $this->warnMessage,
-            'close_after_warn_minutes' => $this->afterWarnHours * 60 + $this->afterWarnMinutes,
+            'warn_message' => trim($this->warnMessage) === '' ? AutoCloseSettings::DEFAULT_WARN : $this->warnMessage,
+            'close_after_warn_minutes' => self::total($this->afterWarnHours, $this->afterWarnMinutes),
             'farewell_enabled' => $this->farewellEnabled,
-            'farewell_message' => $this->farewellMessage,
+            'farewell_message' => trim($this->farewellMessage) === '' ? AutoCloseSettings::DEFAULT_FAREWELL : $this->farewellMessage,
             'business_hours_only' => $this->businessHoursOnly,
         ]);
 
@@ -87,22 +86,31 @@ class AutoClose extends Component
 
         return view('livewire.settings.auto-close', [
             'warnPreview' => AutoCloseSettings::render($this->warnMessage, $ticket),
-            'farewellPreview' => AutoCloseSettings::render($this->farewellMessage, $ticket),
+            'farewellPreview' => AutoCloseSettings::render($this->farewellMessage, $ticket, AutoCloseSettings::DEFAULT_FAREWELL),
         ]);
     }
 
     /**
-     * Regra em closure: o total em minutos (horas e minutos) precisa caber na faixa. A assinatura traz o atributo.
+     * Regra em closure: horas e minutos são inteiros não negativos e o total cabe na faixa. A assinatura traz o atributo.
      *
      * @SuppressWarnings("PHPMD.UnusedFormalParameter")
      */
-    private function range(int $total, int $max, string $message): Closure
+    private function range(int|string|null $hours, int|string|null $minutes, int $max, string $message): Closure
     {
-        return function (string $attribute, mixed $value, Closure $fail) use ($total, $max, $message): void {
-            if ($total < AutoCloseSettings::MIN_MINUTES || $total > $max) {
+        return function (string $attribute, mixed $value, Closure $fail) use ($hours, $minutes, $max, $message): void {
+            $valid = filter_var($hours, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]) !== false
+                && filter_var($minutes, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]) !== false;
+            $total = self::total($hours, $minutes);
+
+            if (! $valid || $total < AutoCloseSettings::MIN_MINUTES || $total > $max) {
                 $fail($message);
             }
         };
+    }
+
+    private static function total(int|string|null $hours, int|string|null $minutes): int
+    {
+        return (int) $hours * 60 + (int) $minutes;
     }
 
     /** @return array{int, int} */
