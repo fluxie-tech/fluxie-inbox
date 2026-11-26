@@ -27,6 +27,22 @@ class BusinessHours
     /** Quantos dias à frente procurar a próxima abertura (cobre feriados emendados). */
     private const LOOKAHEAD_DAYS = 60;
 
+    /** @var array<int, list<BusinessHour>>|null faixas já lidas por `snapshot()` */
+    private ?array $windowsMemo = null;
+
+    /** @var list<string>|null feriados já lidos por `snapshot()` */
+    private ?array $holidaysMemo = null;
+
+    /** Uma cópia que lê as faixas e os feriados uma vez só, para uma rotina que decide centenas de chamados; vale só por esta rodada. */
+    public function snapshot(): static
+    {
+        $copy = clone $this;
+        $copy->windowsMemo = $this->windows();
+        $copy->holidaysMemo = $this->holidays();
+
+        return $copy;
+    }
+
     public function isOpen(CarbonInterface $at): bool
     {
         $windows = $this->windows();
@@ -194,6 +210,10 @@ class BusinessHours
     /** @return array<int, list<BusinessHour>> faixas por dia da semana, em ordem de abertura */
     private function windows(): array
     {
+        if ($this->windowsMemo !== null) {
+            return $this->windowsMemo;
+        }
+
         $byDay = [];
 
         foreach (BusinessHour::query()->orderBy('opens_at')->get() as $window) {
@@ -206,7 +226,7 @@ class BusinessHours
     /** @return list<string> datas `Y-m-d` */
     private function holidays(): array
     {
-        return array_values(array_map(fn (Holiday $h): string => $h->date->toDateString(), Holiday::query()->where('closes', true)->get()->all()));
+        return $this->holidaysMemo ?? array_values(array_map(fn (Holiday $h): string => $h->date->toDateString(), Holiday::query()->where('closes', true)->get()->all()));
     }
 
     private function local(CarbonInterface $at): CarbonImmutable
