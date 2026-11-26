@@ -6,9 +6,6 @@
                     <flux:input wire:model="newName" label="Nome" placeholder="Ex.: Orçamento enviado" maxlength="60" autocomplete="off" />
                 </div>
                 <flux:button type="submit" variant="primary" size="sm" icon="plus">Criar motivo</flux:button>
-                @error('newName')
-                    <p class="basis-full text-xs text-danger" role="alert">{{ $message }}</p>
-                @enderror
             </form>
         </x-panel>
 
@@ -18,8 +15,8 @@
                     <li class="border-b border-line px-4 py-3 last:border-b-0" wire:key="reason-{{ $reason->id }}">
                         <div class="flex flex-wrap items-center gap-3">
                             <div class="flex flex-col">
-                                <flux:button size="xs" variant="subtle" icon="chevron-up" wire:click="move({{ $reason->id }}, 'up')" aria-label="Subir {{ $reason->name }}" />
-                                <flux:button size="xs" variant="subtle" icon="chevron-down" wire:click="move({{ $reason->id }}, 'down')" aria-label="Descer {{ $reason->name }}" />
+                                <flux:button size="xs" variant="subtle" icon="chevron-up" wire:click="move({{ $reason->id }}, 'up')" :disabled="$loop->first" aria-label="Subir {{ $reason->name }}" />
+                                <flux:button size="xs" variant="subtle" icon="chevron-down" wire:click="move({{ $reason->id }}, 'down')" :disabled="$loop->last" aria-label="Descer {{ $reason->name }}" />
                             </div>
 
                             <div class="min-w-36 flex-1" x-data="sectorRow(@js($reason->name))">
@@ -35,8 +32,12 @@
                                 </form>
                             </div>
 
-                            <flux:switch :checked="$reason->requires_summary" wire:click="toggleSummary({{ $reason->id }})" label="Pede resumo" />
-                            <flux:switch :checked="$reason->active" wire:click="setActive({{ $reason->id }}, {{ $reason->active ? 'false' : 'true' }})" label="Ativo" />
+                            <div wire:key="summary-{{ $reason->id }}-{{ $refusals }}">
+                                <flux:switch :checked="$reason->requires_summary" wire:click="toggleSummary({{ $reason->id }}, {{ $reason->requires_summary ? 'false' : 'true' }})" label="Pede resumo" />
+                            </div>
+                            <div wire:key="active-{{ $reason->id }}-{{ $refusals }}">
+                                <flux:switch :checked="$reason->active" wire:click="setActive({{ $reason->id }}, {{ $reason->active ? 'false' : 'true' }})" label="Ativo" />
+                            </div>
 
                             <flux:button size="xs" variant="subtle" icon="trash" wire:click="remove({{ $reason->id }})" aria-label="Apagar {{ $reason->name }}" />
                         </div>

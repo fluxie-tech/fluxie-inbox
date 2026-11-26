@@ -45,7 +45,7 @@ class ClosingPageTest extends TestCase
         foreach ([
             fn (Closing $c) => $c->create('Novo', $save),
             fn (Closing $c) => $c->rename($id, 'Outro', $save),
-            fn (Closing $c) => $c->toggleSummary($id),
+            fn (Closing $c) => $c->toggleSummary($id, true),
             fn (Closing $c) => $c->setActive($id, false, $save),
             fn (Closing $c) => $c->move($id, 'down'),
             fn (Closing $c) => $c->remove($id, $save),
@@ -113,10 +113,10 @@ class ClosingPageTest extends TestCase
         $reason = $this->reason('Sem resposta');
         $page = Livewire::actingAs($this->admin())->test(Closing::class);
 
-        $page->call('toggleSummary', $reason->id);
+        $page->call('toggleSummary', $reason->id, true);
         $flipped = $reason->fresh();
         $this->assertNotNull($flipped);
-        $page->call('toggleSummary', $reason->id);
+        $page->call('toggleSummary', $reason->id, false);
         $this->assertNotSame($flipped->requires_summary, $reason->fresh()?->requires_summary);
     }
 
@@ -178,5 +178,47 @@ class ClosingPageTest extends TestCase
     {
         $this->actingAs($this->admin())->get('/configuracoes/encerramento')->assertSee('Encerramento');
         $this->actingAs(User::factory()->create(['role' => UserRole::SUPERVISOR]))->get('/configuracoes/etiquetas')->assertDontSee(route('configuracoes.encerramento'));
+    }
+
+    public function test_o_erro_do_nome_aparece_uma_vez_so(): void
+    {
+        $html = Livewire::actingAs($this->admin())->test(Closing::class)->call('create', 'resolvido')->html();
+
+        $this->assertSame(1, substr_count($html, 'Já existe um motivo com esse nome.'));
+    }
+
+    public function test_pede_resumo_vem_do_interruptor_e_nao_inverte_no_servidor(): void
+    {
+        $reason = $this->reason('Sem resposta');
+        $page = Livewire::actingAs($this->admin())->test(Closing::class);
+
+        $page->call('toggleSummary', $reason->id, true)->call('toggleSummary', $reason->id, true);
+        $this->assertTrue($reason->fresh()?->requires_summary);
+
+        $page->call('toggleSummary', $reason->id, false);
+        $this->assertFalse($reason->fresh()?->requires_summary);
+    }
+
+    public function test_interruptor_recusado_e_redesenhado_para_refletir_o_servidor(): void
+    {
+        $page = Livewire::actingAs($this->admin())->test(Closing::class);
+        $page->call('setActive', $this->reason('Resolvido')->id, false)->call('setActive', $this->reason('Sem resposta')->id, false);
+        $last = $this->reason('Cliente pediu');
+        $key = fn (): bool => str_contains($page->html(), 'wire:key="active-'.$last->id.'-0"');
+
+        $this->assertTrue($key());
+        $page->call('setActive', $last->id, false)->assertHasErrors('active.'.$last->id);
+        $this->assertFalse($key());
+    }
+
+    public function test_setas_do_primeiro_e_do_ultimo_ficam_desativadas(): void
+    {
+        $html = Livewire::actingAs($this->admin())->test(Closing::class)->html();
+        $disabled = fn (string $label): bool => preg_match('/<button[^>]*aria-label="'.$label.'"[^>]*>/', $html, $m) === 1 && preg_match('/\sdisabled[\s=>]/', $m[0]) === 1;
+
+        $this->assertTrue($disabled('Subir Resolvido'));
+        $this->assertFalse($disabled('Descer Resolvido'));
+        $this->assertFalse($disabled('Subir Cliente pediu'));
+        $this->assertTrue($disabled('Descer Cliente pediu'));
     }
 }

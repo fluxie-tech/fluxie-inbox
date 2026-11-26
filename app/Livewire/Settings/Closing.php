@@ -16,6 +16,9 @@ class Closing extends Component
 {
     public string $newName = '';
 
+    /** Sobe a cada recusa: troca a chave dos interruptores para o navegador redesenhá-los com o estado do servidor. */
+    public int $refusals = 0;
+
     public function mount(): void
     {
         $this->authorize('admin');
@@ -40,12 +43,11 @@ class Closing extends Component
         $this->attempt('rename.'.$id, fn () => $save->rename(CloseReason::query()->findOrFail($id), $name));
     }
 
-    public function toggleSummary(int $id): void
+    public function toggleSummary(int $id, bool $required): void
     {
         $this->authorize('admin');
 
-        $reason = CloseReason::query()->findOrFail($id);
-        $reason->update(['requires_summary' => ! $reason->requires_summary]);
+        CloseReason::query()->findOrFail($id)->update(['requires_summary' => $required]);
     }
 
     public function setActive(int $id, bool $active, SaveCloseReason $save): void
@@ -97,6 +99,7 @@ class Closing extends Component
             $action();
         } catch (CloseReasonRejected $e) {
             $this->addError($errorKey, $e->getMessage());
+            $this->refusals++;
         }
     }
 
