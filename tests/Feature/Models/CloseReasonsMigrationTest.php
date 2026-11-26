@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Models;
 
-use App\Enums\CloseOutcome;
 use App\Enums\TicketStatus;
 use App\Models\Channel;
 use App\Models\CloseReason;
@@ -11,6 +10,7 @@ use App\Models\TicketEvent;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class CloseReasonsMigrationTest extends TestCase
@@ -35,8 +35,8 @@ class CloseReasonsMigrationTest extends TestCase
             'channel_id' => $channel->id,
             'status' => TicketStatus::ENCERRADO,
             'closed_at' => now(),
-            'close_outcome' => CloseOutcome::SEM_RESPOSTA,
         ]);
+        DB::table('tickets')->where('id', $comMotivo->id)->update(['close_outcome' => 'sem_resposta']);
         $semMotivo = Ticket::factory()->create(['channel_id' => $channel->id, 'status' => TicketStatus::ENCERRADO, 'closed_at' => now()]);
         $evento = TicketEvent::query()->create([
             'ticket_id' => $comMotivo->id,

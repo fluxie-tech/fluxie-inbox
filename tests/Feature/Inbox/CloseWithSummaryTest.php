@@ -116,7 +116,6 @@ class CloseWithSummaryTest extends TestCase
         $this->assertSame($motivo->id, $closed?->close_reason_id);
         $this->assertSame('Cliente vai aprovar com o socio.', $closed?->close_summary);
         $this->assertSame(ClosedReason::MANUAL, $closed?->closed_reason);
-        $this->assertNull($closed?->close_outcome);
         $this->assertSame(
             ['reason' => 'manual', 'close_reason_id' => $motivo->id, 'summary' => 'Cliente vai aprovar com o socio.'],
             $this->ticket->events()->where('type', 'closed')->sole()->payload,

@@ -4,6 +4,7 @@ namespace Tests\Feature\History;
 
 use App\Enums\UserRole;
 use App\Livewire\History\Index;
+use App\Models\CloseReason;
 use App\Models\Contact;
 use App\Models\Sector;
 use App\Models\User;
@@ -77,7 +78,7 @@ class HistoryFiltersTest extends TestCase
         $this->assertSame(1, $this->page()->set('to', '2026-11-30')->viewData('activeFilters'));
         $this->assertSame(1, $this->page()->set('from', '2026-01-01')->viewData('activeFilters'));
         $this->assertSame(2, $this->page()->set('to', '2026-11-30')->set('sectorId', $sector->id)->viewData('activeFilters'));
-        $this->assertSame(3, $this->page()->set('sectorId', $sector->id)->set('outcome', 'resolvido')->set('userId', User::factory()->create()->id)->viewData('activeFilters'));
+        $this->assertSame(3, $this->page()->set('sectorId', $sector->id)->set('outcome', (string) CloseReason::query()->value('id'))->set('userId', User::factory()->create()->id)->viewData('activeFilters'));
     }
 
     public function test_o_botao_mostra_a_contagem_quando_ha_filtros(): void
@@ -102,7 +103,7 @@ class HistoryFiltersTest extends TestCase
     {
         $sector = Sector::factory()->create();
 
-        $page = $this->page()->set('from', '2026-01-01')->set('to', '2026-11-30')->set('sectorId', $sector->id)->set('outcome', 'resolvido')
+        $page = $this->page()->set('from', '2026-01-01')->set('to', '2026-11-30')->set('sectorId', $sector->id)->set('outcome', (string) CloseReason::query()->value('id'))
             ->call('clearFilters');
 
         $this->assertSame($this->defaultFrom(), $page->get('from'));

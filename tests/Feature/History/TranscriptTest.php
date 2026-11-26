@@ -6,6 +6,7 @@ use App\Enums\DeliveryStatus;
 use App\Enums\MessageDirection;
 use App\Enums\MessageOrigin;
 use App\Enums\UserRole;
+use App\Models\CloseReason;
 use App\Models\Message;
 use App\Models\Ticket;
 use App\Models\TicketEvent;
@@ -54,7 +55,7 @@ class TranscriptTest extends TestCase
 
     public function test_event_text_rotula_e_detalha_o_encerramento(): void
     {
-        $event = new TicketEvent(['type' => 'closed', 'payload' => ['outcome' => 'resolvido', 'summary' => 'Cotacao enviada']]);
+        $event = new TicketEvent(['type' => 'closed', 'payload' => ['close_reason_id' => CloseReason::query()->where('name', 'Resolvido')->value('id'), 'summary' => 'Cotacao enviada']]);
 
         $this->assertSame('Encerrado', TicketEventText::label('closed'));
         $this->assertSame('tipo_novo', TicketEventText::label('tipo_novo'));

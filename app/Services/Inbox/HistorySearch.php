@@ -2,7 +2,6 @@
 
 namespace App\Services\Inbox;
 
-use App\Enums\CloseOutcome;
 use App\Models\Ticket;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -23,7 +22,7 @@ final class HistorySearch
      *
      * @return Builder<Ticket>
      */
-    public function query(User $user, string $q = '', ?string $from = null, ?string $to = null, ?int $sectorId = null, ?int $userId = null, ?string $outcome = null, ?int $contactId = null): Builder
+    public function query(User $user, string $q = '', ?string $from = null, ?string $to = null, ?int $sectorId = null, ?int $userId = null, ?int $closeReasonId = null, ?int $contactId = null): Builder
     {
         $query = Ticket::query()->inHistoryOf($user);
         $q = trim($q);
@@ -51,7 +50,7 @@ final class HistorySearch
             ->when($sectorId !== null, fn (Builder $b) => $b->where('sector_id', $sectorId))
             ->when($userId !== null && $user->canSeeAllSectors(), fn (Builder $b) => $b->where('assigned_user_id', $userId))
             ->when($contactId !== null, fn (Builder $b) => $b->where('contact_id', $contactId))
-            ->when($outcome !== null && CloseOutcome::tryFrom($outcome) !== null, fn (Builder $b) => $b->where('close_outcome', $outcome));
+            ->when($closeReasonId !== null, fn (Builder $b) => $b->where('close_reason_id', $closeReasonId));
 
         return $query->orderByDesc('closed_at')->orderByDesc('tickets.id');
     }

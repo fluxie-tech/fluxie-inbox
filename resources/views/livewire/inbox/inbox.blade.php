@@ -83,7 +83,7 @@
                             <span class="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-2">
                                 <x-status-badge :status="$item->status" data-testid="card-status" />
                                 <span data-testid="card-protocol" class="shrink-0 font-mono text-xs text-ink-3">{{ $item->protocol }}</span>
-                                <span class="truncate">{{ $item->close_outcome?->label() ?? $item->closed_reason?->label() }}</span>
+                                <span class="truncate">{{ $item->closeReason?->name ?? $item->closed_reason?->label() }}</span>
                             </span>
                         </span>
                     </button>
@@ -245,8 +245,8 @@
                     </div>
                     @if ($ticket->status === \App\Enums\TicketStatus::ENCERRADO)
                         <p class="max-h-16 overflow-y-auto text-xs break-words text-ink-2">
-                            @if ($ticket->close_outcome)
-                                <x-status-badge :status="$ticket->close_outcome" class="me-1" />
+                            @if ($ticket->closeReason)
+                                <x-status-badge tone="neutral" class="me-1">{{ $ticket->closeReason->name }}</x-status-badge>
                             @elseif ($ticket->closed_reason)
                                 <x-status-badge tone="neutral" class="me-1">{{ $ticket->closed_reason->label() }}</x-status-badge>
                             @endif

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Timeline;
 
 use App\Models\Channel;
+use App\Models\CloseReason;
 use App\Models\Sector;
 use App\Models\Ticket;
 use App\Models\TicketEvent;
@@ -111,9 +112,27 @@ class TicketTimelineTest extends TestCase
 
     public function test_encerramento_por_atendente_mostra_motivo_e_resumo(): void
     {
-        $event = $this->event('closed', $this->ana, ['reason' => 'manual', 'outcome' => 'resolvido', 'summary' => 'Orcamento aprovado']);
+        $event = $this->event('closed', $this->ana, ['reason' => 'manual', 'close_reason_id' => CloseReason::query()->where('name', 'Resolvido')->value('id'), 'summary' => 'Orcamento aprovado']);
 
         $this->assertSame('Ana Atendente encerrou: Resolvido · Orcamento aprovado', $this->timeline([$event])->sentence($event));
+    }
+
+    public function test_renomear_o_motivo_muda_o_texto_do_evento_antigo(): void
+    {
+        $motivo = CloseReason::query()->where('name', 'Resolvido')->firstOrFail();
+        $event = $this->event('closed', $this->ana, ['reason' => 'manual', 'close_reason_id' => $motivo->id]);
+        $motivo->update(['name' => 'Concluído']);
+
+        $this->assertSame('Concluído', $this->timeline([$event])->detail($event));
+        $this->assertSame('Concluído', TicketEventText::detail($event));
+    }
+
+    public function test_motivo_apagado_aparece_como_motivo_removido(): void
+    {
+        $event = $this->event('closed', $this->ana, ['reason' => 'manual', 'close_reason_id' => 999999]);
+
+        $this->assertSame('motivo removido', $this->timeline([$event])->detail($event));
+        $this->assertSame('motivo removido', TicketEventText::detail($event));
     }
 
     public function test_mensagens_nao_mostram_json_e_a_recebida_tem_rotulo(): void
@@ -219,7 +238,7 @@ class TicketTimelineTest extends TestCase
             $timeline->sentence($event);
         }
 
-        $this->assertSame(2, $queries, 'um select de setores e um de usuários, não um por evento');
+        $this->assertSame(3, $queries, 'um select de setores, um de usuários e um de motivos, não um por evento');
     }
 
     public function test_nota_restaurada_tem_rotulo_e_frase(): void

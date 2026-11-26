@@ -45,7 +45,7 @@
                         <flux:select size="sm" wire:model="outcome" label="Motivo">
                             <flux:select.option value="">Todos</flux:select.option>
                             @foreach ($outcomes as $item)
-                                <flux:select.option :value="$item->value">{{ $item->label() }}</flux:select.option>
+                                <flux:select.option :value="$item->id">{{ $item->name }}{{ $item->active ? '' : ' (desativado)' }}</flux:select.option>
                             @endforeach
                         </flux:select>
 
@@ -89,8 +89,8 @@
                         <x-contact-chips :contact="$item->contact" testid="history-chip" class="mt-0.5" />
                         <span class="mt-0.5 block truncate text-xs text-ink-2">
                             {{ $item->protocol }} · {{ $item->sector?->name ?? 'Sem setor' }}
-                            @if ($item->close_outcome)
-                                <x-status-badge :status="$item->close_outcome" />
+                            @if ($item->closeReason)
+                                <x-status-badge tone="neutral">{{ $item->closeReason->name }}</x-status-badge>
                             @elseif ($item->closed_reason)
                                 <x-status-badge tone="neutral">{{ $item->closed_reason->label() }}</x-status-badge>
                             @endif
@@ -131,8 +131,8 @@
             <div class="border-b border-line bg-surface-2 px-4 py-2 text-xs text-ink-2" role="status">
                 Encerrado em {{ $ticket->closed_at?->timezone($tz)->format('d/m/Y \à\s H:i') }}@if ($closer) por {{ $closer }}@endif
                 · duração {{ (int) $ticket->opened_at->diffInMinutes($ticket->closed_at, true) }} min
-                @if ($ticket->close_outcome)
-                    <x-status-badge :status="$ticket->close_outcome" />
+                @if ($ticket->closeReason)
+                    <x-status-badge tone="neutral">{{ $ticket->closeReason->name }}</x-status-badge>
                 @elseif ($ticket->closed_reason)
                     <x-status-badge tone="neutral">{{ $ticket->closed_reason->label() }}</x-status-badge>
                 @endif

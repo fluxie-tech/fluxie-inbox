@@ -3,11 +3,11 @@
 namespace Tests\Feature\History;
 
 use App\Enums\ClosedReason;
-use App\Enums\CloseOutcome;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
 use App\Livewire\Inbox\Inbox;
 use App\Models\Channel;
+use App\Models\CloseReason;
 use App\Models\Contact;
 use App\Models\Message;
 use App\Models\Sector;
@@ -96,7 +96,7 @@ class InboxClosedTabTest extends TestCase
 
     public function test_selecionar_encerrado_abre_a_conversa_sem_compositor_e_mostra_motivo_e_resumo(): void
     {
-        $ticket = $this->closed('Joaquim', ['close_outcome' => CloseOutcome::RESOLVIDO, 'close_summary' => 'Cotacao aprovada pelo socio']);
+        $ticket = $this->closed('Joaquim', ['close_reason_id' => CloseReason::query()->where('name', 'Resolvido')->value('id'), 'close_summary' => 'Cotacao aprovada pelo socio']);
         Message::factory()->for($ticket)->create(['body' => 'Pode fechar o pedido']);
 
         $this->inbox()->set('tab', 'encerrados')->call('select', $ticket->id)

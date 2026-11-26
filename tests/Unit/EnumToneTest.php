@@ -3,7 +3,6 @@
 namespace Tests\Unit;
 
 use App\Enums\ChannelStatus;
-use App\Enums\CloseOutcome;
 use App\Enums\GoogleConnectionStatus;
 use App\Enums\SectorStatus;
 use App\Enums\TicketStatus;
@@ -35,9 +34,6 @@ class EnumToneTest extends TestCase
             'setor desativado' => [SectorStatus::DESATIVADO, 'neutral'],
             'google conectado' => [GoogleConnectionStatus::CONNECTED, 'ok'],
             'google precisa reautenticar' => [GoogleConnectionStatus::NEEDS_REAUTH, 'warn'],
-            'desfecho resolvido' => [CloseOutcome::RESOLVIDO, 'ok'],
-            'desfecho sem resposta' => [CloseOutcome::SEM_RESPOSTA, 'neutral'],
-            'desfecho cliente pediu' => [CloseOutcome::CLIENTE_PEDIU, 'neutral'],
         ];
     }
 
@@ -50,7 +46,7 @@ class EnumToneTest extends TestCase
     /** Estado novo sem tom quebra aqui (o `match` do enum não tem `default`). */
     public function test_todo_caso_dos_enums_tem_tom_valido(): void
     {
-        foreach ([TicketStatus::class, ChannelStatus::class, SectorStatus::class, GoogleConnectionStatus::class, CloseOutcome::class] as $enum) {
+        foreach ([TicketStatus::class, ChannelStatus::class, SectorStatus::class, GoogleConnectionStatus::class] as $enum) {
             foreach ($enum::cases() as $case) {
                 $this->assertContains($case->tone(), self::TONES, $enum.'::'.$case->name);
             }

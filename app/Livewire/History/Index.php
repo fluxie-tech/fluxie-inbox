@@ -2,8 +2,8 @@
 
 namespace App\Livewire\History;
 
-use App\Enums\CloseOutcome;
 use App\Enums\TicketStatus;
+use App\Models\CloseReason;
 use App\Models\Contact;
 use App\Models\Sector;
 use App\Models\Ticket;
@@ -86,8 +86,14 @@ class Index extends Component
             $this->to !== '',
             $this->sectorId !== null,
             $this->userId !== null,
-            $this->outcome !== '',
+            $this->closeReasonId() !== null,
         ]));
+    }
+
+    /** Só id vale: a URL antiga com o slug do desfecho (`resolvido`) abre sem filtro. */
+    private function closeReasonId(): ?int
+    {
+        return ctype_digit($this->outcome) ? (int) $this->outcome : null;
     }
 
     public function updated(string $name): void
@@ -113,8 +119,8 @@ class Index extends Component
         assert($user instanceof User);
 
         $tickets = (new HistorySearch)
-            ->query($user, $this->q, $this->from ?: null, $this->to ?: null, $this->sectorId, $this->userId, $this->outcome ?: null, $this->contactId)
-            ->with(['contact.tags', 'sector', 'assignee'])
+            ->query($user, $this->q, $this->from ?: null, $this->to ?: null, $this->sectorId, $this->userId, $this->closeReasonId(), $this->contactId)
+            ->with(['contact.tags', 'sector', 'assignee', 'closeReason'])
             ->simplePaginate(self::PER_PAGE);
 
         return view('livewire.history.index', [
@@ -126,7 +132,7 @@ class Index extends Component
                 ->where(fn ($query) => $query->whereNull('deleted_at')->orWhereIn('id', Ticket::query()->select('sector_id')->whereNotNull('sector_id')))
                 ->orderBy('name')->get(['id', 'name', 'deleted_at']),
             'agents' => $user->canSeeAllSectors() ? User::query()->orderBy('name')->get(['id', 'name']) : null,
-            'outcomes' => CloseOutcome::cases(),
+            'outcomes' => CloseReason::query()->ordered()->get(),
             'filteredContact' => $this->contactId === null ? null : Contact::query()->find($this->contactId)?->label(),
         ]);
     }

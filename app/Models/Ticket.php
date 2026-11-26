@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\ClosedReason;
-use App\Enums\CloseOutcome;
 use App\Enums\TicketStatus;
 use App\Services\Inbox\TicketProtocol;
 use Carbon\CarbonImmutable;
@@ -40,7 +39,6 @@ use Illuminate\Support\Facades\DB;
  * @property CarbonImmutable|null $agent_seen_at
  * @property int|null $agent_seen_message_id
  * @property ClosedReason|null $closed_reason
- * @property CloseOutcome|null $close_outcome
  * @property int|null $close_reason_id
  * @property string|null $close_summary
  * @property CarbonImmutable|null $created_at
@@ -62,7 +60,6 @@ use Illuminate\Support\Facades\DB;
     'last_outbound_at',
     'closed_at',
     'closed_reason',
-    'close_outcome',
     'close_summary',
 ])]
 class Ticket extends Model
@@ -96,7 +93,6 @@ class Ticket extends Model
             'sla_breached_at' => 'datetime',
             'agent_seen_at' => 'datetime',
             'closed_reason' => ClosedReason::class,
-            'close_outcome' => CloseOutcome::class,
         ];
     }
 

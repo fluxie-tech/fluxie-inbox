@@ -2,7 +2,7 @@
 
 namespace App\Support;
 
-use App\Enums\CloseOutcome;
+use App\Models\CloseReason;
 use App\Models\TicketEvent;
 use Carbon\CarbonImmutable;
 use Carbon\Exceptions\InvalidFormatException;
@@ -47,8 +47,9 @@ final class TicketEventText
         $payload = $event->payload ?? [];
 
         if ($event->type === 'closed') {
-            $outcome = is_string($payload['outcome'] ?? null) ? CloseOutcome::tryFrom($payload['outcome'])?->label() : null;
-            $reason = isset($payload['outcome']) || ! is_string($payload['reason'] ?? null) ? null : $payload['reason'];
+            $id = $payload['close_reason_id'] ?? null;
+            $outcome = is_int($id) ? (CloseReason::query()->find($id)->name ?? 'motivo removido') : null;
+            $reason = $outcome !== null || ! is_string($payload['reason'] ?? null) ? null : $payload['reason'];
             $summary = is_string($payload['summary'] ?? null) ? $payload['summary'] : null;
 
             return implode(' · ', array_filter([$outcome, $summary, $reason]));
