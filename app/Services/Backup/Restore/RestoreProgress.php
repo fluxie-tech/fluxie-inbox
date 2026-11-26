@@ -48,6 +48,14 @@ class RestoreProgress
         $this->put(['status' => 'running', 'title' => $title, 'steps' => $steps, 'message' => '', 'kind' => $kind]);
     }
 
+    /** Marca o passo, roda e marca como feito; a exceção sobe para o `fail` (que marca o passo como falho). */
+    public function step(string $key, callable $work): void
+    {
+        $this->running($key);
+        $work();
+        $this->done($key);
+    }
+
     public function running(string $key): void
     {
         $this->mark($key, 'running');

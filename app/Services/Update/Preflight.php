@@ -5,10 +5,6 @@ namespace App\Services\Update;
 use App\Services\Backup\ManualBackupState;
 use App\Services\Backup\Restore\RestoreProgress;
 use App\Settings\UpdateSettings;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 use RuntimeException;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
@@ -21,14 +17,12 @@ final class Preflight
 {
     private const VERSION_KEY = 'FLUXIE_VERSION';
 
-    /** Sem este `Accept` o GHCR responde 404 até para uma tag que existe. */
-    private const MANIFEST_ACCEPT = 'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json';
-
     public function __construct(
         private readonly Coolify $coolify,
         private readonly InstalledVersion $installed,
         private readonly RestoreProgress $restore,
         private readonly ManualBackupState $backup,
+        private readonly ReleaseRegistry $registry,
     ) {}
 
     /**
@@ -64,7 +58,7 @@ final class Preflight
         $errors = $this->connection();
 
         return $errors !== [] ? $errors : array_values(array_filter([
-            $this->imageError($target),
+            $this->registry->imageError($target),
             ...$this->composeErrors($target, $releaseCompose),
             ...$this->busyErrors(),
         ]));
@@ -84,7 +78,7 @@ final class Preflight
             throw new RuntimeException('Consulte as versões de novo antes de atualizar.');
         }
 
-        $body = $this->download($latest['compose_url']);
+        $body = $this->registry->download($latest['compose_url']);
 
         return $body !== null ? $body : throw new RuntimeException('Não foi possível baixar o docker-compose.yml da Release '.$target.'.');
     }
@@ -103,7 +97,7 @@ final class Preflight
         }
 
         $repo = config()->string('fluxie.releases_repo');
-        $original = $this->download("https://github.com/{$repo}/releases/download/v{$release}/docker-compose.yml");
+        $original = $this->registry->download("https://github.com/{$repo}/releases/download/v{$release}/docker-compose.yml");
 
         try {
             $original = $original === null ? null : $this->composeContent($original);
@@ -172,30 +166,6 @@ final class Preflight
         return is_string($value) && $value !== '' ? $value : $this->installed->current();
     }
 
-    private function imageError(Version $target): ?string
-    {
-        $path = Str::after(config()->string('fluxie.image'), 'ghcr.io/');
-        $missing = "A imagem {$target} não está publicada no GHCR.";
-
-        try {
-            $token = Http::timeout(10)->get('https://ghcr.io/token', ['scope' => "repository:{$path}:pull"])->json('token');
-
-            if (! is_string($token) || $token === '') {
-                return 'Não foi possível consultar o GHCR agora.';
-            }
-
-            $manifest = Http::withToken($token)->withHeaders(['Accept' => self::MANIFEST_ACCEPT])->timeout(10)->get("https://ghcr.io/v2/{$path}/manifests/{$target}");
-        } catch (ConnectionException) {
-            return 'Sem conexão com o GHCR.';
-        }
-
-        return match (true) {
-            $manifest->ok() => null,
-            $manifest->status() === 404 => $missing,
-            default => 'Não foi possível consultar o GHCR agora (HTTP '.$manifest->status().').',
-        };
-    }
-
     /** @return list<string> */
     private function composeErrors(Version $target, string $compose): array
     {
@@ -227,21 +197,5 @@ final class Preflight
             $this->restore->isRunning() ? 'Há uma restauração de backup em andamento.' : null,
             $this->backup->isRunning() ? 'Há um backup em andamento.' : null,
         ]));
-    }
-
-    private function download(string $url): ?string
-    {
-        try {
-            $response = Http::withUserAgent('Fluxie-Inbox')->timeout(15)->get($url);
-        } catch (ConnectionException) {
-            return null;
-        }
-
-        return $this->body($response);
-    }
-
-    private function body(Response $response): ?string
-    {
-        return $response->ok() && trim($response->body()) !== '' ? $response->body() : null;
     }
 }

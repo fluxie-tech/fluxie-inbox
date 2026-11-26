@@ -3,6 +3,7 @@
 namespace App\Services\Backup\Restore;
 
 use Carbon\CarbonImmutable;
+use Throwable;
 
 /** O estado de uma restauração em andamento, só para o orquestrador saber o que desfazer se algo falhar. */
 final class RestoreRun
@@ -42,5 +43,16 @@ final class RestoreRun
     public function __construct(public readonly RestoreRequest $request)
     {
         $this->startedAt = CarbonImmutable::now();
+    }
+
+    /** Passo que roda depois de a restauração já ter dado certo: se falhar vira aviso, não desfaz a troca. */
+    public function bestEffort(string $warning, callable $work): void
+    {
+        try {
+            $work();
+        } catch (Throwable $e) {
+            report($e);
+            $this->warnings[] = $warning;
+        }
     }
 }
