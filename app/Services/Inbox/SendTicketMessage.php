@@ -4,6 +4,7 @@ namespace App\Services\Inbox;
 
 use App\Enums\ChannelStatus;
 use App\Enums\DeliveryStatus;
+use App\Enums\TicketStatus;
 use App\Models\Message;
 use App\Models\Ticket;
 use App\Models\User;
@@ -39,6 +40,14 @@ class SendTicketMessage
         $ticket = $message->ticket()->firstOrFail();
         $contact = $ticket->contact()->firstOrFail();
         $channel = $ticket->channel()->firstOrFail();
+
+        // Aviso do encerramento automático criado antes de o chamado ser encerrado e só agora na vez (canal parado na hora, fila
+        // de até 24 h): não faz sentido sair. A despedida nasce depois do encerramento, de propósito, e segue.
+        if ($message->auto_reply && $ticket->status === TicketStatus::ENCERRADO && $ticket->closed_at !== null && $message->created_at < $ticket->closed_at) {
+            $this->status->cancel($message);
+
+            return;
+        }
 
         // Sessão fora de WORKING, ou mensagem mais antiga ainda esperando (a ordem da conversa não se perde): fica na fila
         // e a caixa de saída envia quando a conexão voltar.
