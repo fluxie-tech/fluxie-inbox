@@ -206,7 +206,7 @@ class BusinessHours
     /** @return list<string> datas `Y-m-d` */
     private function holidays(): array
     {
-        return array_values(array_map(fn (Holiday $h): string => $h->date->toDateString(), Holiday::query()->get()->all()));
+        return array_values(array_map(fn (Holiday $h): string => $h->date->toDateString(), Holiday::query()->where('closes', true)->get()->all()));
     }
 
     private function local(CarbonInterface $at): CarbonImmutable

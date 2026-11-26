@@ -2,20 +2,23 @@
 
 namespace App\Models;
 
+use App\Enums\HolidayKind;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Data em que o atendimento fica fechado o dia todo.
+ * Data de feriado. Fecha o atendimento o dia todo só quando `closes` é verdadeiro (a empresa fecha naquele dia).
  *
  * @property int $id
  * @property CarbonImmutable $date
  * @property string $name
+ * @property HolidayKind $kind
+ * @property bool $closes
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['date', 'name'])]
+#[Fillable(['date', 'name', 'kind', 'closes'])]
 class Holiday extends Model
 {
     /**
@@ -23,6 +26,6 @@ class Holiday extends Model
      */
     protected function casts(): array
     {
-        return ['date' => 'date'];
+        return ['date' => 'date', 'kind' => HolidayKind::class, 'closes' => 'boolean'];
     }
 }
