@@ -61,9 +61,41 @@ class HolidayImportParserTest extends TestCase
 
         foreach (['nao json', '{"a":1}', '[]', $grande] as $contents) {
             $result = $this->parse($contents);
-            $this->assertNotNull($result['error']);
+            $this->assertSame($contents === $grande ? 'O arquivo passa de 500 feriados.' : 'O arquivo não é uma lista JSON de feriados.', $result['error']);
             $this->assertSame([], $result['rows']);
         }
+    }
+
+    public function test_json_invalido_ou_utf8_quebrado_da_o_erro_do_arquivo(): void
+    {
+        foreach (['[{"data":"2027-01-01","nome":"'.chr(0xB1).'","tipo":"nacional"}]', '[{"data":'] as $contents) {
+            $this->assertSame('O arquivo não é uma lista JSON de feriados.', $this->parse($contents)['error']);
+        }
+    }
+
+    public function test_item_que_nao_e_objeto_vira_erro_da_linha(): void
+    {
+        $rows = $this->parse('["x", 1, null, []]')['rows'];
+
+        $this->assertCount(4, $rows);
+        foreach ($rows as $row) {
+            $this->assertSame('Data inválida.', $row->error);
+        }
+    }
+
+    public function test_linha_com_erro_nao_reserva_a_data_para_a_repeticao(): void
+    {
+        $json = json_encode([
+            ['data' => '2027-01-01', 'nome' => '', 'tipo' => 'nacional'],
+            ['data' => '2027-01-01', 'nome' => 'Boa', 'tipo' => 'nacional'],
+            ['data' => '2027-01-01', 'nome' => 'Outra', 'tipo' => 'nacional'],
+        ], JSON_THROW_ON_ERROR);
+
+        $rows = $this->parse($json)['rows'];
+
+        $this->assertSame('Informe o nome do feriado.', $rows[0]->error);
+        $this->assertNull($rows[1]->error);
+        $this->assertSame('Data repetida no arquivo.', $rows[2]->error);
     }
 
     public function test_data_inexistente_nome_vazio_ou_longo_e_tipo_desconhecido_viram_erro_da_linha(): void

@@ -20,18 +20,19 @@ class ImportHolidays
             $saved = 0;
 
             foreach ($rows as $row) {
-                // Confere de novo: a data pode ter sido cadastrada entre a prévia e a gravação.
-                if ($row->error !== null || $row->exists || $row->date === null || $row->kind === null || Holiday::query()->whereDate('date', $row->date)->exists()) {
+                if ($row->error !== null || $row->exists || $row->date === null || $row->kind === null) {
                     continue;
                 }
 
-                Holiday::query()->create([
+                // Ignora o conflito no índice único da data: cobre o cadastro entre a prévia e a gravação, mesmo concorrente.
+                $saved += Holiday::query()->insertOrIgnore([
                     'date' => $row->date,
                     'name' => $row->name,
-                    'kind' => $row->kind,
+                    'kind' => $row->kind->value,
                     'closes' => $row->kind !== HolidayKind::FACULTATIVO,
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
-                $saved++;
             }
 
             return $saved;

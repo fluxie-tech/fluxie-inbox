@@ -55,4 +55,13 @@ class ImportHolidaysTest extends TestCase
 
         $this->assertTrue((new BusinessHours)->isOpen(CarbonImmutable::parse('2027-02-10 10:00', 'America/Sao_Paulo')));
     }
+
+    public function test_conta_so_o_que_gravou_quando_a_mesma_data_vem_duas_vezes(): void
+    {
+        $row = new HolidayImportRow('2027-01-01', 'Ano Novo', HolidayKind::NACIONAL, null, false);
+
+        $this->assertSame(1, (new ImportHolidays)([$row, $row]));
+        $this->assertSame(1, Holiday::query()->count());
+        $this->assertNotNull(Holiday::query()->firstOrFail()->created_at);
+    }
 }

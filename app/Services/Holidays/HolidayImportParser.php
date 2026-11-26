@@ -14,7 +14,7 @@ class HolidayImportParser
 
     public const NAME_LIMIT = 120;
 
-    private const FILE_ERROR = 'O arquivo não tem uma lista de feriados em JSON.';
+    private const FILE_ERROR = 'O arquivo não é uma lista JSON de feriados.';
 
     /** @var list<HolidayKind> tipos aceitos na importação: o manual só nasce no cadastro à mão */
     private const IMPORTABLE = [HolidayKind::NACIONAL, HolidayKind::ESTADUAL, HolidayKind::MUNICIPAL, HolidayKind::FACULTATIVO];
@@ -36,7 +36,7 @@ class HolidayImportParser
         }
 
         if (count($items) > self::MAX_ITEMS) {
-            return $this->fileError('O arquivo tem mais de '.self::MAX_ITEMS.' feriados.');
+            return $this->fileError('O arquivo passa de '.self::MAX_ITEMS.' feriados.');
         }
 
         $seen = [];
@@ -120,6 +120,7 @@ class HolidayImportParser
     /** @param  array<string, true>  $seen datas já vistas no arquivo */
     private function rejectRepeated(HolidayImportRow $row, array &$seen): HolidayImportRow
     {
+        // "Vale a primeira" é a primeira linha sem erro: linha com erro não reserva a data.
         if ($row->date === null || $row->error !== null) {
             return $row;
         }
