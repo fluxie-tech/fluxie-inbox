@@ -21,6 +21,7 @@ use App\Livewire\Reports\Index as ReportsIndex;
 use App\Livewire\Settings\Backups;
 use App\Livewire\Settings\BusinessHoursPage;
 use App\Livewire\Settings\Channels;
+use App\Livewire\Settings\Closing;
 use App\Livewire\Settings\Company;
 use App\Livewire\Settings\GoogleContacts;
 use App\Livewire\Settings\QuickReplies;
@@ -85,6 +86,7 @@ Route::middleware(['auth', 'can:admin'])->group(function () {
     Route::get('configuracoes/backups', Backups::class)->name('configuracoes.backups');
     Route::get('configuracoes/backups/{name}', BackupDownloadController::class)->where('name', '[A-Za-z0-9._-]+')->name('configuracoes.backups.baixar');
     Route::get('configuracoes/setores', Sectors::class)->name('configuracoes.setores');
+    Route::get('configuracoes/encerramento', Closing::class)->name('configuracoes.encerramento');
 });
 
 require __DIR__.'/settings.php';
