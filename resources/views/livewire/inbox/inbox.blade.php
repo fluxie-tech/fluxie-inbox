@@ -141,8 +141,11 @@
                                     <span class="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{{ $item->contact->label() }}</span>
                                     <span data-testid="card-time" x-data="relativeTime('{{ $at->toIso8601String() }}', 'narrow')" x-text="label" class="shrink-0 font-mono text-xs text-ink-3">{{ \App\Support\WaitLabel::narrow($at, now()) }}</span>
                                 </span>
-                                @if ($chips->isNotEmpty())
+                                @if ($chips->isNotEmpty() || $showSectorChip)
                                     <span class="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+                                        @if ($showSectorChip)
+                                            <span data-testid="card-sector" class="max-w-24 truncate rounded bg-canvas px-1.5 py-0.5 text-xs text-ink-2">{{ $item->sector->name }}</span>
+                                        @endif
                                         @foreach ($chipsShown as $tag)
                                             <x-tag-chip :tag="$tag" :conversation="$tag->scope === \App\Enums\TagScope::CONVERSA" :data-testid="$tag->scope === \App\Enums\TagScope::CONTATO ? 'card-chip-contact' : 'card-chip-ticket'" />
                                         @endforeach
@@ -151,9 +154,14 @@
                                         @endif
                                     </span>
                                 @endif
-                                <span class="mt-0.5 block min-w-0 truncate text-xs text-ink-2">
-                                    <span x-cloak x-show="$store.clientPresence.label({{ $item->id }})" x-text="$store.clientPresence.label({{ $item->id }})" class="font-medium text-accent-content"></span>
-                                    <span x-show="! $store.clientPresence.label({{ $item->id }})">{{ \App\Support\WhatsAppText::html((string) $item->preview) }}</span>
+                                <span data-testid="card-preview" class="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-ink-2">
+                                    <span class="min-w-0 flex-1 truncate">
+                                        <span x-cloak x-show="$store.clientPresence.label({{ $item->id }})" x-text="$store.clientPresence.label({{ $item->id }})" class="font-medium text-accent-content"></span>
+                                        <span x-show="! $store.clientPresence.label({{ $item->id }})">{{ \App\Support\WhatsAppText::html((string) $item->preview) }}</span>
+                                    </span>
+                                    @if ($unread > 0)
+                                        <span data-testid="card-unread" class="min-w-5 shrink-0 rounded-full bg-accent px-1.5 text-center font-mono text-xs font-semibold text-accent-foreground"><span aria-hidden="true">{{ $unread > 99 ? '99+' : $unread }}</span><span class="sr-only">mensagens não lidas: {{ $unread }}</span></span>
+                                    @endif
                                 </span>
                                 @if ($hasMeta)
                                     <span data-testid="card-meta" class="mt-1 flex min-w-0 items-center gap-2 overflow-hidden text-xs text-ink-3">
@@ -162,29 +170,21 @@
                                         @endif
                                     </span>
                                 @endif
-                                <span class="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                                <span class="mt-1 flex min-w-0 items-center gap-x-2">
                                     <x-status-badge :status="$item->status" data-testid="card-status" />
                                     <span data-testid="card-protocol" class="shrink-0 font-mono text-xs text-ink-3">{{ $item->protocol }}</span>
-                                    @if ($showSectorChip || $showAssignee || $unread > 0)
-                                        {{-- O que era a coluna da direita: à direita da linha do selo, e quando quebra continua à direita. --}}
-                                        <span data-testid="card-extras" class="ms-auto flex flex-wrap items-center justify-end gap-2">
-                                            @if ($showSectorChip)
-                                                <span data-testid="card-sector" class="max-w-24 truncate rounded bg-canvas px-1.5 py-0.5 text-xs text-ink-2">{{ $item->sector->name }}</span>
-                                            @endif
-                                            @if ($showAssignee)
-                                                @php
-                                                    $fullName = trim((string) preg_replace('/^[\s\x{00A0}]+|[\s\x{00A0}]+$/u', '', $item->assignee->name));
-                                                @endphp
-                                                <span title="{{ $fullName }}" class="inline-flex max-w-24 items-center gap-1 text-xs text-ink-2">
-                                                    <x-avatar :src="$item->assignee->avatarUrl()" :name="$item->assignee->name" shape="round" size="xs" decorative />
-                                                    <span class="sr-only">Atendente: {{ $fullName }}</span>
-                                                    {{-- Coluna estreita: só a foto, para o atendente não descer sozinho para outra linha (17rem cabe selo, protocolo, foto e nome). --}}
-                                                    <span data-testid="card-assignee-name" aria-hidden="true" title="{{ $item->assignee->name }}" class="hidden max-w-16 truncate @[17rem]:inline">{{ preg_split('/[\s\x{00A0}]+/u', $fullName)[0] ?: $fullName }}</span>
-                                                </span>
-                                            @endif
-                                            @if ($unread > 0)
-                                                <span data-testid="card-unread" class="min-w-5 rounded-full bg-accent px-1.5 text-center font-mono text-xs font-semibold text-accent-foreground"><span aria-hidden="true">{{ $unread > 99 ? '99+' : $unread }}</span><span class="sr-only">mensagens não lidas: {{ $unread }}</span></span>
-                                            @endif
+                                    @if ($showAssignee)
+                                        {{-- Só o atendente fica à direita da linha do selo, que nunca quebra. --}}
+                                        <span data-testid="card-extras" class="ms-auto flex shrink-0 items-center justify-end gap-2">
+                                            @php
+                                                $fullName = trim((string) preg_replace('/^[\s\x{00A0}]+|[\s\x{00A0}]+$/u', '', $item->assignee->name));
+                                            @endphp
+                                            <span title="{{ $fullName }}" class="inline-flex max-w-24 items-center gap-1 text-xs text-ink-2">
+                                                <x-avatar :src="$item->assignee->avatarUrl()" :name="$item->assignee->name" shape="round" size="xs" decorative />
+                                                <span class="sr-only">Atendente: {{ $fullName }}</span>
+                                                {{-- Coluna estreita: só a foto, para o atendente não descer sozinho para outra linha (17rem cabe selo, protocolo, foto e nome). --}}
+                                                <span data-testid="card-assignee-name" aria-hidden="true" title="{{ $item->assignee->name }}" class="hidden max-w-16 truncate @[17rem]:inline">{{ preg_split('/[\s\x{00A0}]+/u', $fullName)[0] ?: $fullName }}</span>
+                                            </span>
                                         </span>
                                     @endif
                                 </span>

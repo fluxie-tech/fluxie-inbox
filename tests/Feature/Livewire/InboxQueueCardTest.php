@@ -100,8 +100,8 @@ class InboxQueueCardTest extends TestCase
         return new \DOMXPath($dom);
     }
 
-    /** Arranjo do Pencil: o tempo na linha do nome; setor, atendente e não lidas na linha do selo (sem coluna da direita). */
-    public function test_tempo_na_linha_do_nome_e_setor_atendente_e_nao_lidas_na_linha_do_selo(): void
+    /** O tempo na linha do nome; setor na linha das etiquetas, não lidas na da mensagem e só o atendente na linha do selo. */
+    public function test_tempo_na_linha_do_nome_setor_nas_etiquetas_nao_lidas_na_mensagem_e_atendente_na_linha_do_selo(): void
     {
         $vendas = Sector::factory()->create(['name' => 'Vendas']);
         $suporte = Sector::factory()->create(['name' => 'Suporte']);
@@ -119,24 +119,28 @@ class InboxQueueCardTest extends TestCase
 
         $this->assertSame(1, $xpath->query($card.'//*[@data-testid="card-time"]/parent::*/span[normalize-space()="Rosana Prado"]')->length, 'o tempo divide a linha com o nome');
         $group = $card.'//*[@data-testid="card-status"]/parent::*/*[@data-testid="card-extras"]';
-        $this->assertSame(1, $xpath->query($group)->length, 'o grupo à direita fica na linha do selo');
-        $this->assertSame(1, $xpath->query($group.'/*[@data-testid="card-unread"]')->length, 'não lidas no grupo');
-        $this->assertSame(1, $xpath->query($group.'/*[@data-testid="card-sector"]')->length, 'setor no grupo');
+        $this->assertSame(1, $xpath->query($group)->length, 'o atendente fica na linha do selo');
         $this->assertSame(1, $xpath->query($group.'/*[.//*[@data-testid="card-assignee-name"]]')->length, 'atendente no grupo');
+        $this->assertSame(0, $xpath->query($group.'//*[@data-testid="card-sector" or @data-testid="card-unread"]')->length, 'setor e não lidas saíram da linha do selo');
+        $tags = $card.'//*[@data-testid="card-time"]/parent::*/following-sibling::*[1]';
+        $this->assertSame(1, $xpath->query($tags.'/*[@data-testid="card-sector"]')->length, 'setor na linha das etiquetas');
+        $this->assertSame(1, $xpath->query($card.'//*[@data-testid="card-preview"]/*[@data-testid="card-unread"]')->length, 'não lidas na linha da mensagem');
     }
 
-    /** Sem setor, atendente nem não lidas, o grupo da direita não existe (nada de espaço vazio na linha do selo). */
-    public function test_sem_setor_atendente_nem_nao_lidas_a_linha_do_selo_nao_tem_o_grupo(): void
+    /** Sem atendente, o grupo da direita não existe, mesmo com setor e não lidas (nada de espaço vazio na linha do selo). */
+    public function test_sem_atendente_a_linha_do_selo_nao_tem_o_grupo(): void
     {
-        $this->ticket();
+        $ticket = $this->ticket(['sector_id' => Sector::factory()->create()->id]);
+        $this->ticket(['sector_id' => Sector::factory()->create()->id]);
+        Message::factory()->for($ticket)->create(['direction' => MessageDirection::IN, 'sent_at' => now()->subMinutes(3)]);
 
         $xpath = $this->xpath($this->html());
 
-        $this->assertSame(1, $xpath->query('//*[@data-testid="card-status"]')->length);
+        $this->assertSame(2, $xpath->query('//*[@data-testid="card-status"]')->length);
         $this->assertSame(0, $xpath->query('//*[@data-testid="card-extras"]')->length);
     }
 
-    public function test_atendente_fica_entre_o_setor_e_as_nao_lidas(): void
+    public function test_leitura_vai_de_hora_setor_mensagem_nao_lidas_a_atendente(): void
     {
         $vendas = Sector::factory()->create(['name' => 'Vendas']);
         $suporte = Sector::factory()->create(['name' => 'Suporte']);
@@ -146,11 +150,11 @@ class InboxQueueCardTest extends TestCase
 
         $html = $this->html();
 
-        $positions = array_map(fn (string $testid): int|false => strpos($html, 'data-testid="'.$testid.'"'), ['card-time', 'card-sector', 'card-assignee-name', 'card-unread']);
+        $positions = array_map(fn (string $testid): int|false => strpos($html, 'data-testid="'.$testid.'"'), ['card-time', 'card-sector', 'card-preview', 'card-unread', 'card-assignee-name']);
         $this->assertNotContains(false, $positions);
         $sorted = $positions;
         sort($sorted);
-        $this->assertSame($sorted, $positions, 'a leitura vai de hora, setor, atendente a não lidas');
+        $this->assertSame($sorted, $positions, 'a leitura vai de hora, setor, mensagem, não lidas a atendente');
         $this->assertStringNotContainsString('data-testid="card-meta"', $html, 'com um só canal a linha de baixo some');
     }
 
@@ -436,7 +440,7 @@ class InboxQueueCardTest extends TestCase
         $this->ticket(['status' => TicketStatus::ENCERRADO, 'closed_at' => now()->subHour()]);
         $user = User::factory()->create(['role' => UserRole::ADMIN]);
 
-        foreach (['todos', 'encerrados'] as $tab) {
+        foreach (['encerrados'] as $tab) {
             $protocol = $this->node(Livewire::actingAs($user)->test(Inbox::class, ['tab' => $tab])->html(), '//*[@data-testid="card-protocol"]');
             $tokens = fn (\DOMElement $el): array => preg_split('/\s+/', trim($el->getAttribute('class')));
 
@@ -445,6 +449,17 @@ class InboxQueueCardTest extends TestCase
             $this->assertInstanceOf(\DOMElement::class, $protocol->parentNode);
             $this->assertContains('flex-wrap', $tokens($protocol->parentNode), $tab);
         }
+    }
+
+    /** Fila ativa: a linha do selo nunca quebra (setor e não lidas moraram em outras linhas); o card encerrado segue quebrando. */
+    public function test_linha_do_selo_da_fila_ativa_nao_quebra(): void
+    {
+        $this->ticket();
+
+        $row = $this->node($this->html(), '//*[@data-testid="card-protocol"]')->parentNode;
+
+        $this->assertInstanceOf(\DOMElement::class, $row);
+        $this->assertNotContains('flex-wrap', explode(' ', $row->getAttribute('class')));
     }
 
     public function test_cartao_selecionado_usa_muted(): void
