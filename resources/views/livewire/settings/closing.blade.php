@@ -1,4 +1,4 @@
-<x-settings-page route="configuracoes.encerramento" title="Encerramento" subtitle="Os motivos aparecem no Encerrar, nesta ordem. Desativado sai do Encerrar e continua no histórico. Só dá para apagar um motivo que nunca foi usado." width="wide">
+<x-settings-page route="configuracoes.encerramento" title="Encerramento" subtitle="Os motivos aparecem no Encerrar, nesta ordem. Desativado sai do Encerrar e continua no histórico. Só dá para apagar um motivo que nunca foi usado.">
     <div class="mt-6 space-y-5">
         <x-panel title="Novo motivo">
             <form wire:submit="create($wire.newName)" class="flex flex-wrap items-end gap-2 p-4">
