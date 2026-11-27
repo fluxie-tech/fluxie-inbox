@@ -213,7 +213,7 @@ class InboxHeaderTest extends TestCase
         $xpath = $this->xpath();
         $grid = $xpath->query('//*[@x-data="ticketDetails"]')->item(0)->getAttribute('class');
 
-        $this->assertStringContainsString('2xl:grid-cols-[340px_minmax(0,1fr)_var(--details-w,280px)]', $grid);
+        $this->assertStringContainsString('2xl:grid-cols-[380px_minmax(0,1fr)_var(--details-w,280px)]', $grid);
         $this->assertStringNotContainsString('lg:grid-cols-[340px_minmax(0,1fr)_var', $grid);
         $this->assertSame(1, $xpath->query('//header//button[@aria-controls="ticket-details"][contains(concat(" ",@class," ")," 2xl:hidden ")]')->length);
         $this->assertSame(1, $xpath->query('//header//button[@aria-controls="ticket-details"][contains(@class,"max-2xl:hidden")]')->length);

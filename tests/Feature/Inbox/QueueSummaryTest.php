@@ -107,7 +107,7 @@ class QueueSummaryTest extends TestCase
     {
         $ticket = $this->ticket('2026-000001');
 
-        $this->assertStringContainsString('lg:grid-cols-[340px_minmax(0,1fr)]', $this->page()->html());
+        $this->assertStringContainsString('lg:grid-cols-[340px_minmax(0,1fr)] 2xl:grid-cols-[380px_minmax(0,1fr)]', $this->page()->html());
         $this->assertStringContainsString('var(--details-w', $this->page()->call('select', $ticket->id)->html());
     }
 }
