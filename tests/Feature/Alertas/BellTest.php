@@ -283,4 +283,43 @@ class BellTest extends TestCase
         $this->assertCount(2, $screen->viewData('items'));
         $screen->assertViewHas('unread', 2);
     }
+
+    public function test_depois_de_3_s_aberto_zera_o_contador_e_mantem_o_destaque_dos_que_eram_novos(): void
+    {
+        $eu = User::factory()->create();
+        $eu->notify(new ChannelDown(Channel::factory()->create()));
+        $id = $eu->notifications()->firstOrFail()->id;
+
+        $this->actingAs($eu);
+
+        $screen = Livewire::test(Bell::class)->call('seenWhileOpen')->assertViewHas('unread', 0)->assertSet('held', [$id]);
+
+        $this->assertNotNull($eu->notifications()->firstOrFail()->read_at);
+        $this->assertTrue($screen->viewData('items')[0]['unread']);
+    }
+
+    public function test_ao_fechar_o_destaque_some(): void
+    {
+        $eu = User::factory()->create();
+        $eu->notify(new ChannelDown(Channel::factory()->create()));
+
+        $this->actingAs($eu);
+
+        $screen = Livewire::test(Bell::class)->call('seenWhileOpen')->call('releaseHeld')->assertSet('held', []);
+
+        $this->assertFalse($screen->viewData('items')[0]['unread']);
+    }
+
+    public function test_ver_o_sino_nao_mexe_nos_alertas_de_outro_usuario(): void
+    {
+        $eu = User::factory()->create();
+        $outro = User::factory()->create();
+        $outro->notify(new ChannelDown(Channel::factory()->create()));
+
+        $this->actingAs($eu);
+
+        Livewire::test(Bell::class)->call('seenWhileOpen')->assertSet('held', []);
+
+        $this->assertNull($outro->notifications()->firstOrFail()->read_at);
+    }
 }

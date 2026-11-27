@@ -9,6 +9,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 /** O sino do menu: os alertas guardados dos últimos 7 dias, com contador de não lidos. */
@@ -18,6 +19,14 @@ class Bell extends Component
 
     /** Quantos alertas recentes entram na conta antes de juntar os de SLA repetidos. */
     private const WINDOW = 200;
+
+    /**
+     * Ids que eram não lidos quando o sino ficou 3 s aberto: seguem com o destaque até ele fechar.
+     *
+     * @var array<int, string>
+     */
+    #[Locked]
+    public array $held = [];
 
     /** @return array<string, string> */
     public function getListeners(): array
@@ -79,6 +88,24 @@ class Bell extends Component
     public function markAllRead(): void
     {
         Auth::user()?->unreadNotifications()->update(['read_at' => now()]);
+    }
+
+    /** O sino ficou aberto o bastante: tudo vira lido (o contador zera), e o destaque dos que eram novos fica até fechar. */
+    public function seenWhileOpen(): void
+    {
+        $unread = Auth::user()?->unreadNotifications();
+
+        if ($unread === null) {
+            return;
+        }
+
+        $this->held = $unread->get(['id'])->map(fn (DatabaseNotification $n): string => $n->id)->all();
+        $unread->update(['read_at' => now()]);
+    }
+
+    public function releaseHeld(): void
+    {
+        $this->held = [];
     }
 
     /** @return array{string, string, string, string} */
@@ -189,7 +216,7 @@ class Bell extends Component
             'tone' => $tone,
             'title' => $title,
             'detail' => $detail,
-            'unread' => $n->read_at === null,
+            'unread' => $n->read_at === null || in_array($n->id, $this->held, true),
             'time' => $n->created_at?->diffForHumans() ?? '',
             // O instante exato: o navegador recalcula o "há N minutos" (o texto do servidor congela até a próxima releitura).
             'at' => $n->created_at?->toIso8601String() ?? '',
