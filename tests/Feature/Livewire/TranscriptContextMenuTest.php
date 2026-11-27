@@ -83,7 +83,8 @@ class TranscriptContextMenuTest extends TestCase
         $html = Livewire::actingAs($me)->test(Transcript::class, ['ticketId' => $ticket->id])->html();
 
         $this->assertMatchesRegularExpression('/<div[^>]*x-data="messageMenu"[^>]*x-on:conversation-menu-open\.window="closeUnless\(\$event\)"/', $html);
-        $this->assertMatchesRegularExpression('/<div[^>]*x-data="messageMenu"[^>]*x-on:keydown\.escape\.window="escape\(\)"/', $html);
+        $this->assertMatchesRegularExpression('/<div[^>]*x-data="messageMenu"[^>]*x-on:keydown\.escape\.window\.capture="escape\(\$event\)"/', $html);
+        $this->assertMatchesRegularExpression('/<div[^>]*x-data="conversationContextMenu"[^>]*x-on:keydown\.escape\.window\.capture="escape\(\$event\)"/', $html);
         $this->assertMatchesRegularExpression('/<div[^>]*x-data="conversationContextMenu"[^>]*x-on:conversation-menu-open\.window="closeUnless\(\$event\)"/', $html);
     }
 }

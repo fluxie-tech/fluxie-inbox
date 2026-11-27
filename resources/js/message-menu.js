@@ -59,8 +59,10 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        escape() {
+        // Na captura da janela e só com o menu aberto: o Esc fecha o menu e não chega ao que mais escuta Esc (respostas rápidas, emoji).
+        escape(event) {
             if (this.open) {
+                event.stopPropagation();
                 this.open = false;
                 this.returnTo?.focus();
             }
@@ -76,7 +78,7 @@ document.addEventListener('alpine:init', () => {
             this.$nextTick(async () => {
                 await shown(this.$refs.menu);
                 this.place(point);
-                this.$nextTick(() => this.$refs.menu.querySelector('[role="menuitem"]')?.focus());
+                this.$nextTick(() => this.$refs.menu.querySelector('[role="menuitem"]')?.focus({ preventScroll: true }));
             });
         },
 

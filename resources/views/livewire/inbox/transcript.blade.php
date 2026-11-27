@@ -27,7 +27,7 @@
     x-on:contextmenu="onContextMenu($event)"
     x-on:contextmenu.window="outside($event)"
     x-on:keydown="onKeydown($event)"
-    x-on:keydown.escape.window="escape()"
+    x-on:keydown.escape.window.capture="escape($event)"
     x-on:conversation-menu-open.window="closeUnless($event)"
     x-on:scroll.window.capture="open = false"
     x-on:resize.window="open = false"
@@ -161,7 +161,7 @@
                 <div
                     x-data="messageMenu"
                     x-on:conversation-menu-open.window="closeUnless($event)"
-                    x-on:keydown.escape.window="escape()"
+                    x-on:keydown.escape.window.capture="escape($event)"
                     x-on:scroll.window.capture="open = false"
                     x-on:resize.window="open = false"
                     class="absolute end-1 top-1"
