@@ -371,12 +371,12 @@ class InboxTranscriptTest extends TestCase
         [$me, $ticket] = $this->mine();
         $this->say($ticket, 'Texto para copiar')->update(['wa_message_id' => 'W1']);
 
-        $this->assertStringContainsString('Copiar', $this->menuHtml($me, $ticket));
+        $this->assertStringContainsString('copy(', $this->menuHtml($me, $ticket));
 
         $ticket->messages()->delete();
         Message::factory()->for($ticket)->create(['wa_message_id' => 'W2', 'type' => 'media', 'body' => '', 'media_mime' => 'image/jpeg', 'media_name' => 'f.jpg', 'media_ref' => 'files/f.jpg']);
 
-        $this->assertStringNotContainsString('Copiar', $this->menuHtml($me, $ticket));
+        $this->assertStringNotContainsString('copy(', $this->menuHtml($me, $ticket));
     }
 
     public function test_menu_tem_adicionar_texto_as_notas_so_com_texto_e_com_permissao(): void

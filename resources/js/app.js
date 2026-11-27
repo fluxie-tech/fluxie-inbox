@@ -23,6 +23,7 @@ import './command-palette';
 import './alert-dismiss';
 import './queue-search';
 import './message-menu';
+import './conversation-context-menu';
 import './settings-ui';
 import './auth-ui';
 import './relative-time';

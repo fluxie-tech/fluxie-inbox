@@ -20,6 +20,23 @@
         ->values();
 @endphp
 
+{{-- Botão direito (resources/js/conversation-context-menu.js): na bolha com menu abre o da setinha; no texto selecionado, o "Copiar" daqui.
+     Link, imagem, vídeo, arquivo e campo ficam com o menu do navegador. Os dois menus são `fixed`, pelo mesmo motivo do menu da bolha. --}}
+<div
+    x-data="conversationContextMenu"
+    x-on:contextmenu="onContextMenu($event)"
+    x-on:contextmenu.window="outside($event)"
+    x-on:keydown="onKeydown($event)"
+    x-on:keydown.escape.window="escape()"
+    x-on:conversation-menu-open.window="closeUnless($event)"
+    x-on:scroll.window.capture="open = false"
+    x-on:resize.window="open = false"
+    class="space-y-2"
+>
+    <div data-selection-menu x-ref="menu" x-cloak x-show="open" x-bind:style="style" x-bind:class="placed ? 'opacity-100 scale-100' : 'opacity-0 scale-95'" x-transition:leave="transition duration-100 ease-out" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" x-on:click.outside="open = false" x-on:click="open = false" role="menu" class="fixed z-50 min-w-36 rounded-md border border-line bg-surface p-1 text-xs shadow-md transition duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]">
+        <button type="button" role="menuitem" x-on:click="copySelection()" class="flex w-full items-center gap-2 rounded px-2 py-1 text-start hover:bg-canvas"><svg class="size-4 text-ink-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M7 3.5A1.5 1.5 0 0 1 8.5 2h6A1.5 1.5 0 0 1 16 3.5v8a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 7 11.5v-8Z"/><path d="M4 6a1.5 1.5 0 0 0-1.5 1.5v8A1.5 1.5 0 0 0 4 17h6a1.5 1.5 0 0 0 1.5-1.5V15H8.5A3.5 3.5 0 0 1 5 11.5V6H4Z"/></svg>Copiar</button>
+    </div>
+
 @foreach ($timeline as $message)
     @if ($message instanceof \App\Models\TicketNote)
         @include('livewire.inbox.note', ['note' => $message])
@@ -67,7 +84,7 @@
             $message->origin === \App\Enums\MessageOrigin::BOT => 'bg-(--bubble-bg) [--bubble-bg:color-mix(in_oklab,var(--color-bot)_15%,var(--color-canvas))]',
             $out => 'bg-(--bubble-bg) [--bubble-bg:var(--color-accent-soft)]',
             default => 'border border-line bg-(--bubble-bg) [--bubble-bg:var(--color-surface)]',
-        } }}">
+        } }}" @if ($hasMenu) data-message-menu="{{ $message->id }}" tabindex="-1" @endif>
             @if ($message->origin === \App\Enums\MessageOrigin::BOT)
                 <p class="mb-0.5 font-mono text-xs tracking-wide text-bot uppercase">Automação · resposta automática</p>
             @endif
@@ -143,6 +160,8 @@
                      A posição vem do botão: abaixo dele, ou acima se não couber, e sempre dentro da tela. --}}
                 <div
                     x-data="messageMenu"
+                    x-on:conversation-menu-open.window="closeUnless($event)"
+                    x-on:keydown.escape.window="escape()"
                     x-on:scroll.window.capture="open = false"
                     x-on:resize.window="open = false"
                     class="absolute end-1 top-1"
@@ -213,3 +232,4 @@
         @endif
     </div>
 @endforeach
+</div>

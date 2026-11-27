@@ -145,7 +145,7 @@
             @endif
 
             <div class="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-4 py-4">
-                <div class="space-y-2">
+                <div>
                     @include('livewire.inbox.transcript', ['messages' => $messages, 'readonly' => true])
                 </div>
             </div>
