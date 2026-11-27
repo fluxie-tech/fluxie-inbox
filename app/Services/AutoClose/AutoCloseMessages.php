@@ -39,6 +39,12 @@ class AutoCloseMessages
         $message = $this->messages->create($ticket, null, AutoCloseSettings::render($template, $ticket), MessageOrigin::BOT, autoReply: true);
         SendTicketMessageJob::dispatch($message->id);
 
+        if ($step === AutoCloseStep::CLOSE) {
+            // A despedida sai depois do CloseTicket: grava no evento de encerramento recém-criado que ela foi enviada.
+            $closed = $ticket->events()->where('type', 'closed')->latest('id')->first();
+            $closed?->update(['payload' => [...($closed->payload ?? []), 'farewell' => true]]);
+        }
+
         return true;
     }
 }

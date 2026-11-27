@@ -110,6 +110,17 @@ class TicketTimelineTest extends TestCase
         $this->assertSame('SLA estourado (esperando desde 30/10 10:00, limite 30/10 10:10)', $timeline->sentence($sla));
     }
 
+    public function test_aviso_e_despedida_do_encerramento_automatico_aparecem_na_linha_do_tempo(): void
+    {
+        $warned = $this->event('auto_close_warned');
+        $farewell = $this->event('closed', null, ['reason' => 'inatividade', 'farewell' => true]);
+        $timeline = $this->timeline([$warned, $farewell]);
+
+        $this->assertSame('Automação avisou o cliente do encerramento por inatividade', $timeline->sentence($warned));
+        $this->assertSame('Encerrado por inatividade · despedida enviada', $timeline->sentence($farewell));
+        $this->assertSame([$warned->id, $farewell->id], TicketTimeline::changes(new Collection([$warned, $farewell]))->pluck('id')->all());
+    }
+
     public function test_encerramento_por_atendente_mostra_motivo_e_resumo(): void
     {
         $event = $this->event('closed', $this->ana, ['reason' => 'manual', 'close_reason_id' => CloseReason::query()->where('name', 'Resolvido')->value('id'), 'summary' => 'Orcamento aprovado']);

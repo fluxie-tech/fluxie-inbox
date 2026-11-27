@@ -67,6 +67,11 @@ class ClosingPageTest extends TestCase
         $this->actingAs($this->admin())->get('/configuracoes/encerramento')->assertOk()->assertSee('Sem resposta');
     }
 
+    public function test_pagina_usa_a_largura_de_formulario(): void
+    {
+        Livewire::actingAs($this->admin())->test(Closing::class)->assertSeeHtml('max-w-4xl');
+    }
+
     public function test_cria_no_fim_da_lista(): void
     {
         Livewire::actingAs($this->admin())->test(Closing::class)->call('create', ' Orçamento enviado ')->assertHasNoErrors();

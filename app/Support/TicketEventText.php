@@ -33,6 +33,7 @@ final class TicketEventText
         'bot_started' => 'Automação iniciou o atendimento',
         'bot_abandoned' => 'Equipe respondeu pelo celular; a triagem da Automação acabou',
         'bot_handoff' => 'Automação encaminhou',
+        'auto_close_warned' => 'Automação avisou o cliente do encerramento por inatividade',
     ];
 
     public static function label(string $type): string

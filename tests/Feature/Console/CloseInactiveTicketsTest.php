@@ -165,6 +165,7 @@ class CloseInactiveTicketsTest extends TestCase
         $this->assertNotNull($ticket->auto_close_warned_at);
         $this->assertSame(1, $this->autoReplies($ticket));
         Queue::assertPushed(SendTicketMessageJob::class, 1);
+        $this->assertSame(1, $ticket->events()->where('type', 'auto_close_warned')->count());
 
         $this->travel(29)->minutes();
         $this->artisan('app:close-inactive-tickets')->expectsOutput('Avisos: 0. Encerrados: 0.')->assertSuccessful();
@@ -176,6 +177,8 @@ class CloseInactiveTicketsTest extends TestCase
         $this->assertSame(TicketStatus::ENCERRADO, $ticket->fresh()?->status);
         $this->assertSame(2, $this->autoReplies($ticket));
         Queue::assertPushed(SendTicketMessageJob::class, 2);
+        $this->assertSame(1, $ticket->events()->where('type', 'auto_close_warned')->count());
+        $this->assertSame(['reason' => 'inatividade', 'farewell' => true], $ticket->events()->where('type', 'closed')->sole()->payload);
         $this->assertStringContainsString('Encerramos o atendimento', (string) $ticket->messages()->where('auto_reply', true)->latest('id')->value('body'));
     }
 
@@ -223,6 +226,7 @@ class CloseInactiveTicketsTest extends TestCase
         $this->assertSame(TicketStatus::ENCERRADO, $stopped->fresh()?->status);
         $this->assertSame(TicketStatus::ENCERRADO, $inactive->fresh()?->status);
         $this->assertSame(0, Message::query()->where('auto_reply', true)->count());
+        $this->assertSame(['reason' => 'inatividade'], $stopped->events()->where('type', 'closed')->sole()->payload);
         Queue::assertNotPushed(SendTicketMessageJob::class);
     }
 
