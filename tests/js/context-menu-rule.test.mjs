@@ -34,8 +34,12 @@ test('seleção que começa fora da conversa deixa o menu do navegador quando a 
     assert.equal(rule({ bubbleHasMenu: false, selectionText: 'abc', selectionInsideRoot: false, pointInSelection: true }), 'native');
 });
 
-test('seleção que começa fora da conversa não abre o Copiar nem engole o menu da bolha', () => {
-    assert.equal(rule({ selectionText: 'abc', selectionInsideRoot: false, pointInSelection: true }), 'bubble');
+test('seleção que começa fora da conversa, com o clique nela, deixa o menu do navegador mesmo na bolha com menu', () => {
+    assert.equal(rule({ selectionText: 'abc', selectionInsideRoot: false, pointInSelection: true }), 'native');
+});
+
+test('seleção que vaza da conversa, com o clique fora dela, abre o menu da bolha clicada', () => {
+    assert.equal(rule({ selectionText: 'abc', selectionInsideRoot: false, pointInSelection: false }), 'bubble');
 });
 
 test('sem seleção, bolha com menu abre o menu da bolha', () => {

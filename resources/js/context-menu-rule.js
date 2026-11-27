@@ -10,8 +10,9 @@ export function contextMenuTarget({ shift, nativeTarget, selectionText, selectio
         return 'native';
     }
 
-    if (selectionText.trim() !== '' && selectionInsideRoot && pointInSelection) {
-        return 'selection';
+    if (selectionText.trim() !== '' && pointInSelection) {
+        // Seleção que vaza da conversa: o menu do navegador, que também copia.
+        return selectionInsideRoot ? 'selection' : 'native';
     }
 
     return bubbleHasMenu ? 'bubble' : 'native';
