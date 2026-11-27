@@ -77,8 +77,8 @@
 
                         <span class="min-w-0 flex-1">
                             <span class="flex items-baseline justify-between gap-2">
-                                <span class="truncate text-sm font-semibold text-ink">{{ $item->contact->label() }}</span>
-                                <span class="font-mono text-xs text-ink-3">{{ $item->closed_at?->timezone($tz)->format('d/m H:i') }}</span>
+                                <span data-testid="closed-card-name" class="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{{ $item->contact->label() }}</span>
+                                <span data-testid="closed-card-time" class="shrink-0 whitespace-nowrap font-mono text-xs text-ink-3">{{ $item->closed_at?->timezone($tz)->format('d/m H:i') }}</span>
                             </span>
                             <span class="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-2">
                                 <x-status-badge :status="$item->status" data-testid="card-status" />

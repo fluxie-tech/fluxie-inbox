@@ -477,6 +477,22 @@ class InboxQueueCardTest extends TestCase
         $this->assertSame($ticket->protocol, trim($this->part($html, 'card-protocol')));
     }
 
+    /** Nome longo encolhe com reticências; a hora do encerramento fica sempre numa linha só. */
+    public function test_cartao_encerrado_mantem_a_hora_numa_linha_e_trunca_o_nome(): void
+    {
+        $this->ticket(['status' => TicketStatus::ENCERRADO, 'closed_at' => now()->subHour()]);
+
+        $html = Livewire::actingAs(User::factory()->create(['role' => UserRole::ADMIN]))->test(Inbox::class, ['tab' => 'encerrados'])->html();
+        $time = $this->node($html, '//*[@data-testid="closed-card-time"]');
+        $name = $this->node($html, '//*[@data-testid="closed-card-name"]');
+
+        $this->assertContains('shrink-0', explode(' ', $time->getAttribute('class')));
+        $this->assertContains('whitespace-nowrap', explode(' ', $time->getAttribute('class')));
+        foreach (['min-w-0', 'flex-1', 'truncate'] as $class) {
+            $this->assertContains($class, explode(' ', $name->getAttribute('class')));
+        }
+    }
+
     public function test_sla_estourado_vira_ponto_com_texto_para_leitor_de_tela(): void
     {
         $this->ticket(['waiting_since' => now()->subHour(), 'sla_warn_at' => now()->subMinutes(30), 'sla_due_at' => now()->subMinute()]);
