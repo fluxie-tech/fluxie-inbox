@@ -160,8 +160,9 @@ final class TicketTimeline
         $outcome = is_int($id) ? $this->closeReasons->get($id, 'motivo removido') : null;
         $summary = is_string($payload['summary'] ?? null) ? $payload['summary'] : null;
         $automatic = $outcome === null && ($payload['reason'] ?? null) === ClosedReason::INATIVIDADE->value ? 'por inatividade' : null;
+        $farewell = $automatic !== null && ($payload['farewell'] ?? false) === true ? 'despedida enviada' : null;
 
-        return implode(' · ', array_filter([$outcome, $summary, $automatic]));
+        return implode(' · ', array_filter([$outcome, $summary, $automatic, $farewell]));
     }
 
     private function sector(mixed $id): string

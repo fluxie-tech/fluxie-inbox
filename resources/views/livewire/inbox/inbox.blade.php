@@ -4,7 +4,7 @@
 
 <div
     data-open-ticket="{{ $ticketId }}"
-    class="grid min-h-0 flex-1 grid-cols-1 bg-surface lg:grid-cols-[340px_minmax(0,1fr)] {{ $ticket ? '2xl:grid-cols-[340px_minmax(0,1fr)_var(--details-w,280px)]' : '' }}"
+    class="grid min-h-0 flex-1 grid-cols-1 bg-surface lg:grid-cols-[340px_minmax(0,1fr)] {{ $ticket ? '2xl:grid-cols-[380px_minmax(0,1fr)_var(--details-w,280px)]' : '2xl:grid-cols-[380px_minmax(0,1fr)]' }}"
     x-data="ticketDetails"
     x-bind:style="details ? '' : '--details-w: 0px'"
     data-client-presence="{{ json_encode($clientPresence, JSON_THROW_ON_ERROR) }}"

@@ -55,9 +55,16 @@ class AutoCloseDecision
     {
         $last = $this->last->for($ticket);
 
-        return $last !== null && Ticket::query()
+        $marked = $last !== null && Ticket::query()
             ->whereKey($ticket->id)
             ->where(fn ($query) => $query->whereNull('auto_close_warned_at')->orWhere('auto_close_warned_at', '<=', $last->sent_at))
             ->update(['auto_close_warned_at' => $now]) === 1;
+
+        // O evento nasce junto da marca, então um aviso nunca deixa dois eventos.
+        if ($marked) {
+            $ticket->events()->create(['type' => 'auto_close_warned']);
+        }
+
+        return $marked;
     }
 }
