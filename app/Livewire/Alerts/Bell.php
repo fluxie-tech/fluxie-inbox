@@ -28,13 +28,24 @@ class Bell extends Component
     #[Locked]
     public array $held = [];
 
+    /** O "visto" já disparou com o sino aberto: alerta que chega agora também precisa de 3 s à vista (o navegador reinicia o relógio). */
+    #[Locked]
+    public bool $watching = false;
+
     /** @return array<string, string> */
     public function getListeners(): array
     {
         return [
-            'echo-private:users.'.Auth::id().',.Illuminate\\Notifications\\Events\\BroadcastNotificationCreated' => '$refresh',
+            'echo-private:users.'.Auth::id().',.Illuminate\\Notifications\\Events\\BroadcastNotificationCreated' => 'received',
             'alerts-refresh' => '$refresh',
         ];
+    }
+
+    public function received(): void
+    {
+        if ($this->watching) {
+            $this->dispatch('bell-new-while-open');
+        }
     }
 
     public function markRead(string $id): void
@@ -99,13 +110,15 @@ class Bell extends Component
             return;
         }
 
-        $this->held = $unread->get(['id'])->map(fn (DatabaseNotification $n): string => $n->id)->all();
+        $this->held = [...$this->held, ...$unread->get(['id'])->map(fn (DatabaseNotification $n): string => $n->id)->all()];
+        $this->watching = true;
         $unread->update(['read_at' => now()]);
     }
 
     public function releaseHeld(): void
     {
         $this->held = [];
+        $this->watching = false;
     }
 
     /** @return array{string, string, string, string} */

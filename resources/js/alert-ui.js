@@ -1,7 +1,7 @@
 // Sino e banner de recuperação dos alertas (resources/views/livewire/alerts). A lógica mora aqui, e não em expressões de atributo,
 // porque o build CSP do Alpine (livewire.csp.js) não avalia strings: ver tests/Unit/AlpineCspSubsetTest.php.
 
-import { bellOpenChanged } from './bell-seen';
+import { bellNewWhileOpen, bellOpenChanged } from './bell-seen';
 
 const BELL_GAP = 8;
 const RECOVERED_MS = 10000;
@@ -16,12 +16,15 @@ document.addEventListener('alpine:init', () => {
 
         // Todos os caminhos de fechar (botão, clique fora, Esc) só mudam `open`: o relógio dos 3 s mora aqui.
         init() {
-            this.$watch('open', (open) => bellOpenChanged(open, this.seenState, {
+            const deps = {
                 seen: () => this.$wire.seenWhileOpen(),
                 release: () => this.$wire.releaseHeld(),
                 setTimer: setTimeout,
                 clearTimer: clearTimeout,
-            }));
+            };
+
+            this.$watch('open', (open) => bellOpenChanged(open, this.seenState, deps));
+            this.$wire.on('bell-new-while-open', () => bellNewWhileOpen(this.seenState, deps));
         },
 
         get menuStyle() {

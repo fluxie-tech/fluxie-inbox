@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { SEEN_AFTER_MS, bellOpenChanged } from '../../resources/js/bell-seen.js';
+import { SEEN_AFTER_MS, bellNewWhileOpen, bellOpenChanged } from '../../resources/js/bell-seen.js';
 
 // Relógio falso: guarda a função agendada para o teste disparar à mão.
 const harness = () => {
@@ -46,4 +46,29 @@ test('fechar depois de visto libera o destaque uma vez', () => {
     bellOpenChanged(false, h.state, h.deps);
 
     assert.equal(h.release, 1);
+});
+
+test('alerta novo depois do "visto" reinicia os 3 s e chama de novo', () => {
+    const h = harness();
+
+    bellOpenChanged(true, h.state, h.deps);
+    h.run();
+    bellNewWhileOpen(h.state, h.deps);
+
+    assert.equal(h.cancelled, 1);
+    assert.equal(h.ms, SEEN_AFTER_MS);
+    h.run();
+    assert.equal(h.seen, 2);
+
+    bellOpenChanged(false, h.state, h.deps);
+    assert.equal(h.release, 1);
+});
+
+test('alerta novo antes do "visto" não mexe no timer', () => {
+    const h = harness();
+
+    bellOpenChanged(true, h.state, h.deps);
+    bellNewWhileOpen(h.state, h.deps);
+
+    assert.equal(h.cancelled, 0);
 });
