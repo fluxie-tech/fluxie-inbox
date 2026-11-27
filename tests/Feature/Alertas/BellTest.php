@@ -326,13 +326,14 @@ class BellTest extends TestCase
     public function test_alerta_que_chega_com_o_sino_vigiado_avisa_o_navegador_e_entra_no_destaque(): void
     {
         $eu = User::factory()->create();
-        $eu->notify(new ChannelDown(Channel::factory()->create()));
+        $canal = Channel::factory()->create();
+        $eu->notify(new ChannelDown($canal));
         $this->actingAs($eu);
 
         $screen = Livewire::test(Bell::class)->call('received')->assertNotDispatched('bell-new-while-open');
         $screen->call('seenWhileOpen')->call('received')->assertDispatched('bell-new-while-open');
 
-        $eu->notify(new ChannelDown(Channel::factory()->create()));
+        $eu->notify(new ChannelDown($canal));
         $novo = $eu->unreadNotifications()->firstOrFail()->id;
         $screen->call('seenWhileOpen')->assertViewHas('unread', 0);
 
