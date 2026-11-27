@@ -141,7 +141,7 @@ class ViewConventionsTest extends TestCase
             'livewire/inbox/inbox.blade.php' => 7, // cartões da fila (2), abas Responder/Nota (2), itens de resposta rápida (sugestão do / e lista do botão), Salvar nota (colorido do modo nota)
             'livewire/inbox/media.blade.php' => 2, // abrir a foto e fechar a prévia (sobre fundo escuro)
             'livewire/inbox/new-conversation.blade.php' => 1, // item da lista de contatos
-            'livewire/inbox/transcript.blade.php' => 11, // citação clicável, menu da mensagem e seus itens, reações
+            'livewire/inbox/transcript.blade.php' => 12, // citação clicável, menu da mensagem e seus itens, reações, item do menu Copiar da seleção
             'livewire/settings/channel-card.blade.php' => 2, // seletor QR / código de pareamento
             'pages/settings/⚡two-factor-setup-modal.blade.php' => 1, // copiar dentro do campo
         ];
