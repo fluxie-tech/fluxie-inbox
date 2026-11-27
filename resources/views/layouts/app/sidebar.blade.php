@@ -30,7 +30,7 @@
                 @foreach ($nav->primary(auth()->user()) as $item)
                     {{-- A Fila é um componente próprio: os selos se atualizam ao vivo (Livewire), o resto do menu só ao navegar. --}}
                     @if ($item->route === 'inbox')
-                        <livewire:navigation.queue-item />
+                        <livewire:navigation.queue-item :current="request()->routeIs($item->match)" />
                     @else
                         <flux:sidebar.item :href="route($item->route)" :current="request()->routeIs($item->match)" aria-label="{{ $item->label }}" wire:navigate>
                             <x-slot:icon>

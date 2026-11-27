@@ -13,7 +13,7 @@
                 $name = implode(' ', array_filter([$item->label, $counts['breached'] ?: null, $counts['waiting'] ?: null])).': '.implode(', ', $details);
             }
         @endphp
-        <flux:sidebar.item :href="route($item->route)" :current="request()->routeIs($item->match)" aria-label="{{ $name }}" wire:navigate
+        <flux:sidebar.item :href="route($item->route)" :current="$current" aria-label="{{ $name }}" wire:navigate
             :badge="$counts['waiting'] ?: null" badge-color="yellow"
             badge:data-test="queue-badge">
             {{-- Fechada, o Flux esconde badge e selo: o estado da Fila vai num ponto sobre o ícone (vermelho só com SLA estourado). --}}

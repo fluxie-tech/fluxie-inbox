@@ -41,4 +41,19 @@ class QueueItemTest extends TestCase
             'realtime-reconnected', 'alerts-refresh',
         ], array_keys($listeners));
     }
+
+    public function test_na_rota_da_fila_o_item_segue_ativo_depois_do_refresh(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $html = (string) $this->get('/inbox')->assertOk()->getContent();
+        $dom = new \DOMDocument;
+        @$dom->loadHTML('<?xml encoding="utf-8"?>'.$html);
+        $link = (new \DOMXPath($dom))->query('//a[@data-flux-sidebar-item][1]')->item(0);
+        $this->assertTrue($link instanceof \DOMElement && $link->hasAttribute('data-current'));
+
+        Livewire::test(QueueItem::class, ['current' => true])->call('$refresh')->assertSeeHtml(' data-current="');
+        // O pedido de atualização do Livewire não é a rota da Fila: quem diz se é a página atual é o layout, uma vez só.
+        Livewire::test(QueueItem::class, ['current' => false])->call('$refresh')->assertDontSeeHtml(' data-current="');
+    }
 }

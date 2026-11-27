@@ -12,6 +12,9 @@ use Livewire\Component;
 /** O item "Fila" do menu com os selos de aguardando e de SLA estourado, que se atualizam sem recarregar a página. */
 class QueueItem extends Component
 {
+    /** Se a página aberta é a Fila: o layout diz ao montar (no pedido de atualização do Livewire a rota não é a da página). */
+    public bool $current = false;
+
     /** @return array<string, string> */
     public function getListeners(): array
     {
